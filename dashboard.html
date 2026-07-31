@@ -4765,27 +4765,39 @@ function parseWLDetail(html){
   const uniqueMills  = new Set(parsed.map(r => r.fciCode || r.millName));
   const uniqueDepots = new Set(parsed.map(r => r.sfCode || r.depotName));
 
-  // A mill's nature (Boiled or Raw) is fixed — a mill delivers one or the
-  // other, never both at once. So "Boiled"/"Raw" counts must be UNIQUE
-  // mills with that nature, not row counts: a single mill can have several
-  // separate waiting-list bookings (multiple lots) of its one nature, and
-  // counting rows inflates Boiled+Raw past the true "Mills Waiting" total
-  // even though nothing is actually double-booked. Also flag (don't hide)
-  // any mill code that genuinely shows up under both natures — per the
-  // business rule that should never happen, so if it does it's a real
-  // data/parsing issue worth surfacing rather than silently miscounting.
+  // A mill can have waiting bookings of both Boiled and Raw nature at the
+  // same time — confirmed against real data (mill 46086): it booked
+  // different stacks on different dates, one Boiled, one Raw, both still
+  // legitimately outstanding. So "Boiled"/"Raw" counts must be UNIQUE
+  // mills with that nature, not row counts: a single mill can also have
+  // several separate bookings of the SAME nature (multiple lots), and
+  // counting rows would inflate Boiled+Raw past the true "Mills Waiting"
+  // total even though nothing is actually double-booked.
+  //
+  // What genuinely IS suspicious: the same mill booking BOTH natures on
+  // the SAME date (a real same-moment double-booking), as opposed to
+  // sequential bookings on different dates (normal). Only that case gets
+  // flagged — grouped by mill + booking date, not by mill alone.
   const natByMill = {};
+  const natByMillDate = {};
   parsed.forEach(r => {
     const k = r.fciCode || r.millName;
     if(!natByMill[k]) natByMill[k] = new Set();
     natByMill[k].add(r.nat);
+    const dk = k + '|' + (r.bookedOn || '');
+    if(!natByMillDate[dk]) natByMillDate[dk] = new Set();
+    natByMillDate[dk].add(r.nat);
   });
   const millKeys = Object.keys(natByMill);
   const boiledUniqueMills = millKeys.filter(k => natByMill[k].has('Boiled')).length;
   const rawUniqueMills    = millKeys.filter(k => natByMill[k].has('Raw')).length;
-  const mixedNatureKeys   = millKeys.filter(k => natByMill[k].size > 1);
+  const mixedNatureKeys = [...new Set(
+    Object.keys(natByMillDate)
+      .filter(dk => natByMillDate[dk].size > 1)
+      .map(dk => dk.split('|')[0])
+  )];
   if(mixedNatureKeys.length > 0){
-    console.warn('Waiting List Detailed: ' + mixedNatureKeys.length + ' mill code(s) show BOTH Boiled and Raw entries — a mill should only ever have one nature. Check fciCode/millName parsing or the source file for these codes: ' + mixedNatureKeys.join(', '));
+    console.warn('Waiting List Detailed: ' + mixedNatureKeys.length + ' mill code(s) show BOTH Boiled and Raw entries booked on the SAME date — check the source file for these codes: ' + mixedNatureKeys.join(', '));
   }
 
   return {
