@@ -2333,9 +2333,13 @@ function renderAllocActive(){
     ...(nat!=='B'?ALLOC_DATA.raw:[])
   ];
   if(dist) mills = mills.filter(m=>m.dist===dist);
-  if(flag) mills = mills.filter(m=>m.flag===flag);
 
-  // Recalc flags with current days remaining
+  // Recalc flags with current days remaining — must happen BEFORE filtering
+  // by flag below. ALLOC_DATA mills are built with a hardcoded flag:'In
+  // Progress' placeholder (see buildAllocFromUploads); the real status is
+  // only known once recomputed here, so filtering first always matched
+  // against that stale placeholder and returned nothing for every status
+  // except "In Progress".
   mills = mills.map(m=>{
     let f = m.flag;
     if(m.del===0 && m.dso>0) f='Zero Delivery';
@@ -2345,6 +2349,8 @@ function renderAllocActive(){
     else f='In Progress';
     return {...m, flag:f};
   });
+
+  if(flag) mills = mills.filter(m=>m.flag===flag);
 
   // Filter NO_DSO_MILLS by same nat + dist filters
   const _dist = document.getElementById('alloc-dist-filter').value;
