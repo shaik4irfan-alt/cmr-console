@@ -4752,9 +4752,9 @@ function parseWLDetail(html){
   const millKeys = Object.keys(natByMill);
   const boiledUniqueMills = millKeys.filter(k => natByMill[k].has('Boiled')).length;
   const rawUniqueMills    = millKeys.filter(k => natByMill[k].has('Raw')).length;
-  const mixedNatureMills  = millKeys.filter(k => natByMill[k].size > 1).length;
-  if(mixedNatureMills > 0){
-    console.warn('Waiting List Detailed: ' + mixedNatureMills + ' mill code(s) show BOTH Boiled and Raw entries — a mill should only ever have one nature. Check fciCode/millName parsing or the source file for these codes: ' + millKeys.filter(k => natByMill[k].size > 1).join(', '));
+  const mixedNatureKeys   = millKeys.filter(k => natByMill[k].size > 1);
+  if(mixedNatureKeys.length > 0){
+    console.warn('Waiting List Detailed: ' + mixedNatureKeys.length + ' mill code(s) show BOTH Boiled and Raw entries — a mill should only ever have one nature. Check fciCode/millName parsing or the source file for these codes: ' + mixedNatureKeys.join(', '));
   }
 
   return {
@@ -4769,7 +4769,8 @@ function parseWLDetail(html){
       total_depots:  uniqueDepots.size,
       boiled:        boiledUniqueMills,
       raw:           rawUniqueMills,
-      mixed_nature:  mixedNatureMills,
+      mixed_nature:  mixedNatureKeys.length,
+      mixed_nature_codes: mixedNatureKeys,
       forego:        parsed.filter(r=>r.forego).length,
       no_scope:      parsed.filter(r=>r.reason==='No Scope').length,
       no_space:      parsed.filter(r=>r.reason==='No Space at L1').length,
@@ -4802,7 +4803,8 @@ function renderWLDetail(distFilter, depotFilter){
   // ── KPI row ──
   const mixedWarning = s.mixed_nature > 0 ? `
   <div style="background:rgba(239,68,68,0.08);border:1.5px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red);font-weight:700">
-    ⚠️ ${s.mixed_nature} mill code(s) show BOTH Boiled and Raw waiting entries — a mill should only ever have one nature. Check the source file / mill code mapping for these (see browser console for the exact codes).
+    ⚠️ ${s.mixed_nature} mill code(s) show BOTH Boiled and Raw waiting entries — a mill should only ever have one nature. Check the source file / mill code mapping for these:
+    <div style="font-family:monospace;font-weight:600;margin-top:4px;word-break:break-word">${(s.mixed_nature_codes||[]).join(', ')}</div>
   </div>` : '';
   const kpiHtml = mixedWarning + `
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
