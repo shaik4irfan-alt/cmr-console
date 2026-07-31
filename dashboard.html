@@ -214,6 +214,15 @@ body.dbg-on *:not(body):not(html):not(script):not(style):not(#dbg-tip):not(#dbg-
   if(!sessionStorage.getItem('cmr_user')){ window.location.replace('login.html'); }
 })();
 function getSeasonId(){ return new URLSearchParams(window.location.search).get('season'); }
+// SEASON GUARD -- dashboard.html must always be opened with ?season=... .
+// Without it, uploads only ever lived in this tab's temporary storage and
+// were never saved to Firestore, so a refresh (or a new tab/bookmark
+// without the season param) silently wiped everything and fell back to
+// the empty/default screen. Redirect to Season Home instead of allowing
+// that no-persistence mode to run at all.
+(function(){
+  if(!getSeasonId()){ window.location.replace('season-home.html'); }
+})();
 </script>
 
 <script>
@@ -229,9 +238,6 @@ document.addEventListener('DOMContentLoaded', function(){
   updateUploadCard('mm');
   window._autoLaunch = true;
   document.getElementById('update-panel').style.display = 'none';
-  if(!getSeasonId()){
-    document.getElementById('up-sub-season-warning') // no-op placeholder
-  }
 });
 </script>
 
