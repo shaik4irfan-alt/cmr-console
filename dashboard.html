@@ -2008,26 +2008,33 @@ function renderGodowns(){
 // ============================================================
 // WAITING LIST PAGE
 // ============================================================
+// Scrolls to and briefly highlights a Waiting List table section — used by
+// the wl-kpis cards below so each KPI opens the data it summarizes instead
+// of sitting there inert.
+function scrollToWLSection(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const wrap = el.closest('.tbl-wrap') || el;
+  wrap.scrollIntoView({behavior:'smooth', block:'center'});
+  wrap.style.transition = 'box-shadow .25s';
+  wrap.style.boxShadow = '0 0 0 3px var(--accent)';
+  setTimeout(()=>{ wrap.style.boxShadow=''; }, 1400);
+}
+
 function renderWL(){
   if(!WL) return;
   const s=WL.state;
   document.getElementById('wl-kpis').innerHTML=[
-    {l:"Total Godowns",v:s.total_depots,s:"",c:"c-accent"},
-    {l:"Total Waiting",v:s.total_waiting,s:"LOTs/Acks in queue",c:"c-red"},
-    {l:"Boiled Waiting",v:s.boiled_waiting,s:"Boiled LOTs/Acks waiting",c:"c-orange"},
-    {l:"Raw Waiting",v:s.raw_waiting,s:"Raw LOTs/Acks waiting",c:"c-amber"},
-    {l:"VACANT Space",v:s.total_spaces,s:"Ready for delivery",c:"c-teal"},
-    {l:"Boiled VACANT Space",v:s.boiled_space,s:"Boiled slots free",c:"c-green"},
-    {l:"Raw VACANT Space",v:s.raw_space,s:"Raw slots free",c:"c-blue"},
-    {l:"Godowns Waiting",v:s.waiting_depots,s:"Have pending stacks",c:"c-purple"},
-    {l:"Total Capacity",v:(s.total_capacity/1000).toFixed(0)+"K MT",s:"Combined MT capacity",c:"c-accent"},
-
-
-
-
-
-
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kpi-lbl">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-sub">${k.s}</div></div>`).join('');
+    {l:"Total Godowns",v:s.total_depots,s:"",c:"c-accent",target:"wl-agency-tbl"},
+    {l:"Total Waiting",v:s.total_waiting,s:"LOTs/Acks in queue",c:"c-red",target:"wl-waiting-tbl"},
+    {l:"Boiled Waiting",v:s.boiled_waiting,s:"Boiled LOTs/Acks waiting",c:"c-orange",target:"wl-waiting-tbl"},
+    {l:"Raw Waiting",v:s.raw_waiting,s:"Raw LOTs/Acks waiting",c:"c-amber",target:"wl-waiting-tbl"},
+    {l:"VACANT Space",v:s.total_spaces,s:"Ready for delivery",c:"c-teal",target:"wl-space-tbl"},
+    {l:"Boiled VACANT Space",v:s.boiled_space,s:"Boiled slots free",c:"c-green",target:"wl-space-tbl"},
+    {l:"Raw VACANT Space",v:s.raw_space,s:"Raw slots free",c:"c-blue",target:"wl-space-tbl"},
+    {l:"Godowns Waiting",v:s.waiting_depots,s:"Have pending stacks",c:"c-purple",target:"wl-waiting-tbl"},
+    {l:"Total Capacity",v:(s.total_capacity/1000).toFixed(0)+"K MT",s:"Combined MT capacity",c:"c-accent",target:"wl-rh-tbl"},
+  ].map(k=>`<div class="kpi ${k.c}" style="cursor:pointer" onclick="scrollToWLSection('${k.target}')" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''"><div class="kpi-lbl">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-sub">${k.s}</div><div style="font-size:11px;color:var(--dim);margin-top:3px">↓ click to view</div></div>`).join('');
 
   const waiting=WL.depots.filter(d=>d.Wait_Total>0).sort((a,b)=>b.Wait_Total-a.Wait_Total);
   document.getElementById('wl-waiting-tbl').innerHTML=`<thead><tr><th>Godown</th><th>Rail Head</th><th>Agency</th><th>Boiled Wait</th><th>Raw Wait</th><th>Total Wait</th></tr></thead><tbody>${waiting.map(d=>`<tr><td style="font-size:13px;font-weight:500">${d.Depot_Name}</td><td style="font-size:12px;color:var(--muted)">${d.Rail_Head}</td><td><span class="badge2 ${agTag(d.Agency+' '+d.Depot_Name).split(' ')[0]}">${d.Agency}</span></td><td class="mono">${d.Wait_Boiled_Total}</td><td class="mono">${d.Wait_Raw_Total}</td><td style="color:var(--red);font-weight:600">${d.Wait_Total}</td></tr>`).join('')}</tbody>`;
