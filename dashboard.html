@@ -2613,6 +2613,16 @@ function renderAllocState(mills, nat, noDsoList){
   // restricted to rows that reached final acceptance (Stacking Date [17] present).
   const totalCMRAccepted = opmsRows.reduce((s,r)=> r[17] ? s+(r[25]||0) : s, 0);
 
+  // Same "Completed CMR, paddy still on hand" computation used in
+  // renderAllocAlerts — kept in sync so the KPI count here matches the
+  // detail table shown when this card is clicked.
+  const paddyLeftCount = mills.filter(m => {
+    if(m.flag !== 'On Track') return false;
+    const millingRatio = m.nat==='B' ? 0.68 : 0.67;
+    const paddy_used = millingRatio>0 ? m.del/millingRatio : 0;
+    return (m.avail - paddy_used) > 500;
+  }).length;
+
   kpis.push(
     {l:'🚚 FCI Deliveries (Consignment Records)',
      v:fmtQ(opmsFciQty),
@@ -2635,12 +2645,16 @@ function renderAllocState(mills, nat, noDsoList){
     {l:'🚫 No DSO Allocation',
      v:noDsoList.length,
      s:'Mills with BJ = 0 · No CMR target assigned · Cannot deliver',
-     c:'c-red', tab:'No DSO'},
+     // 'No DSO' / 'Paddy Left' aren't real values in the alloc-flag-filter
+     // dropdown, so routing through that filter (like the status KPIs
+     // above) always matched nothing — these are genuinely different
+     // reports, rendered on the Alerts sub-tab, so jump straight there.
+     c:'c-red', action:"showAlTab('alerts')"},
 
     {l:'🌾 Paddy Left After CMR',
-     v:PADDY_REMAINING.length,
-     s:'Col K (Avail Paddy) > 500 Qtl after CMR · Needs fresh allocation',
-     c:'c-amber', tab:'Paddy Left'},
+     v:paddyLeftCount,
+     s:'Avail Paddy > 500 Qtl after CMR (On Track mills) · Needs fresh allocation',
+     c:'c-amber', action:"showAlTab('alerts')"},
 
     {l:'✅ Total CMR Accepted (Boiled+Raw)',
      v:fmtQ(totalCMRAccepted),
@@ -2968,6 +2982,24 @@ function renderAllocAlerts(mills){
   const low   = mills.filter(m=>m.flag==='Low Delivery').sort((a,b)=>a.del_pct-b.del_pct);
   const hiDump= mills.filter(m=>m.dumped>0&&m.del===0).sort((a,b)=>b.dumped-a.dumped);
 
+  // "Completed CMR — Significant Paddy Still Available": mills that have
+  // essentially finished their CMR obligation (On Track, >=90% delivered)
+  // but still hold >500 Qtl of unused paddy. This used to be a hardcoded
+  // sample array (PADDY_REMAINING) left over from the original single-file
+  // dashboard — it never reflected uploaded data, so it kept showing the
+  // same fixed mills after every refresh regardless of what was uploaded.
+  // Computed live from `mills` (the actual uploaded allocation data) now.
+  const paddyLeft = mills
+    .filter(m => m.flag==='On Track')
+    .map(m => {
+      const millingRatio = m.nat==='B' ? 0.68 : 0.67;
+      const paddy_used = millingRatio>0 ? m.del/millingRatio : 0;
+      const bal_paddy = m.avail - paddy_used;
+      return {...m, cmr_del_qtl:m.del, paddy_used, bal_paddy};
+    })
+    .filter(m => m.bal_paddy > 500)
+    .sort((a,b) => b.bal_paddy - a.bal_paddy);
+
   function alertTable(data, cols, rowFn, colFn){
     if(!data.length) return `<div style="color:var(--dim);padding:16px;font-size:13px">None found ✅</div>`;
     return `<div class="tbl-scroll"><table>
@@ -3054,12 +3086,12 @@ function renderAllocAlerts(mills){
 
   <div id="alert-paddyleft" class="alert-card warn" style="margin-bottom:12px">
     <div class="alert-icon">🌾</div>
-    <div><div class="alert-title">Completed CMR — Significant Paddy Still Available (${PADDY_REMAINING.length} mills, &gt;500 Qtl remaining)</div>
+    <div><div class="alert-title">Completed CMR — Significant Paddy Still Available (${paddyLeft.length} mills, &gt;500 Qtl remaining)</div>
     <div class="alert-body">These mills have completed their CMR allocation but still hold significant paddy. They should be given fresh DSO allocation to continue milling.</div></div>
   </div>
   <div class="tbl-wrap" style="margin-bottom:20px"><div class="tbl-scroll"><table>
     <thead><tr><th>#</th><th>District</th><th>CSC Code</th><th>Mill Name</th><th>Type</th><th>Available Paddy (Qtl)</th><th>CMR Del → Paddy Used (Qtl)</th><th>Balance Paddy (Qtl)</th></tr></thead>
-    <tbody>${PADDY_REMAINING.map((m,i)=>`<tr style="background:rgba(245,158,11,0.04)">
+    <tbody>${paddyLeft.map((m,i)=>`<tr style="background:rgba(245,158,11,0.04)">
       <td class="mono" style="color:var(--dim)">${i+1}</td>
       <td style="font-size:12px">${m.dist}</td>
       <td class="mono" style="color:var(--accent);font-weight:700">${m.code}</td>
@@ -3124,7 +3156,6 @@ function renderAllocRecon(){
 }
 
 // ── INIT ALLOC ────────────────────────────────────────────────
-const PADDY_REMAINING = [{"code": "20012", "name": "MEENAKSHI INDS JAMMIKUNTA", "dist": "Karimnagar", "nat": "B", "avail": 16480.0, "cmr_del_qtl": 3474.73, "paddy_used": 5109.9, "bal_paddy": 11370.1}, {"code": "24111", "name": "Vasundhara Rice Industries", "dist": "Nalgonda", "nat": "B", "avail": 41034.8, "cmr_del_qtl": 12139.09, "paddy_used": 17851.6, "bal_paddy": 23183.2}, {"code": "28052018", "name": "SHANKERA SAI RI", "dist": "Nalgonda", "nat": "B", "avail": 32354.0, "cmr_del_qtl": 10424.26, "paddy_used": 15329.79, "bal_paddy": 17024.21}, {"code": "2201232", "name": "SRI VALLI RICE CORPORATION MIRYALGUDA", "dist": "Nalgonda", "nat": "B", "avail": 17333.2, "cmr_del_qtl": 6368.55, "paddy_used": 9365.52, "bal_paddy": 7967.68}, {"code": "23065", "name": "SRIBALAJIPBRMPVTLTD MIRYALAGUDA", "dist": "Nalgonda", "nat": "B", "avail": 12405.2, "cmr_del_qtl": 5208.84, "paddy_used": 7660.06, "bal_paddy": 4745.14}, {"code": "23097", "name": "MS MAHAVISHNU RICE INDUSTRIES MIRYALAGUDA", "dist": "Nalgonda", "nat": "B", "avail": 40634.0, "cmr_del_qtl": 11558.42, "paddy_used": 16997.67, "bal_paddy": 23636.33}, {"code": "23440", "name": "Anjaneya Rice Industries MLG", "dist": "Nalgonda", "nat": "B", "avail": 41394.0, "cmr_del_qtl": 13304.51, "paddy_used": 19565.46, "bal_paddy": 21828.54}, {"code": "23441", "name": "Sri Laxmi Prasanna Rice Industries MLG", "dist": "Nalgonda", "nat": "B", "avail": 29304.4, "cmr_del_qtl": 9268.62, "paddy_used": 13630.32, "bal_paddy": 15674.08}, {"code": "23443", "name": "Chandana Rice Industries MLG", "dist": "Nalgonda", "nat": "B", "avail": 36344.4, "cmr_del_qtl": 11846.7, "paddy_used": 17421.61, "bal_paddy": 18922.79}, {"code": "23447", "name": "Lakshmi Ganapathi Rice Industries MLG", "dist": "Nalgonda", "nat": "B", "avail": 47147.2, "cmr_del_qtl": 14160.06, "paddy_used": 20823.61, "bal_paddy": 26323.59}, {"code": "23448", "name": "Maha Teja Rice Mill Pvt Ltd MLG", "dist": "Nalgonda", "nat": "B", "avail": 70352.8, "cmr_del_qtl": 20836.34, "paddy_used": 30641.68, "bal_paddy": 39711.12}, {"code": "23455", "name": "Sri Shiva Sai Rice Industries MLG", "dist": "Nalgonda", "nat": "B", "avail": 27660.0, "cmr_del_qtl": 9833.49, "paddy_used": 14461.01, "bal_paddy": 13198.99}, {"code": "23456", "name": "Shiva Sai Rice Industries MLG", "dist": "Nalgonda", "nat": "B", "avail": 29743.2, "cmr_del_qtl": 8685.58, "paddy_used": 12772.91, "bal_paddy": 16970.29}, {"code": "42805201", "name": "SURYA TEJA R AND B RI MGUDA", "dist": "Nalgonda", "nat": "B", "avail": 72865.6, "cmr_del_qtl": 21415.1, "paddy_used": 31492.8, "bal_paddy": 41372.8}, {"code": "78927", "name": "Santosh Rice Inds., Settipalem", "dist": "Nalgonda", "nat": "B", "avail": 25326.8, "cmr_del_qtl": 8392.21, "paddy_used": 12341.48, "bal_paddy": 12985.32}, {"code": "5001", "name": "mahalaxmi rice inderstries yadgarpally", "dist": "Nalgonda", "nat": "B", "avail": 30302.4, "cmr_del_qtl": 10986.49, "paddy_used": 16156.6, "bal_paddy": 14145.8}, {"code": "5009", "name": "SAI SRINIVASA RI MIRYALAGUDA", "dist": "Nalgonda", "nat": "B", "avail": 29936.0, "cmr_del_qtl": 10394.29, "paddy_used": 15285.72, "bal_paddy": 14650.28}, {"code": "18241", "name": "SATYANARAYANA INDUSTRIES, GUNDARAM", "dist": "Nizamabad", "nat": "B", "avail": 49720.0, "cmr_del_qtl": 3460.42, "paddy_used": 5088.85, "bal_paddy": 44631.15}, {"code": "18246", "name": "VENU IND, BORGAON P", "dist": "Nizamabad", "nat": "B", "avail": 46764.0, "cmr_del_qtl": 510.66, "paddy_used": 750.97, "bal_paddy": 46013.03}, {"code": "20621", "name": "Laxmi Madhava Inds Katnapalli", "dist": "Peddapalli", "nat": "B", "avail": 25942.0, "cmr_del_qtl": 6942.56, "paddy_used": 10209.65, "bal_paddy": 15732.35}, {"code": "20252", "name": "Umashanker Inds Poosala", "dist": "Peddapalli", "nat": "B", "avail": 31539.6, "cmr_del_qtl": 8679.84, "paddy_used": 12764.47, "bal_paddy": 18775.13}, {"code": "20267", "name": "Mahesh Industries Poosala", "dist": "Peddapalli", "nat": "B", "avail": 18500.8, "cmr_del_qtl": 6943.67, "paddy_used": 10211.28, "bal_paddy": 8289.52}, {"code": "20268", "name": "Balaji Industries Poosala", "dist": "Peddapalli", "nat": "B", "avail": 12199.6, "cmr_del_qtl": 5209.65, "paddy_used": 7661.25, "bal_paddy": 4538.35}, {"code": "20276", "name": "Pavanasutha Industries Katnapalli", "dist": "Peddapalli", "nat": "B", "avail": 26283.6, "cmr_del_qtl": 6935.54, "paddy_used": 10199.33, "bal_paddy": 16084.27}, {"code": "20280", "name": "Hema Inds Katnapalli", "dist": "Peddapalli", "nat": "B", "avail": 20172.0, "cmr_del_qtl": 6941.4, "paddy_used": 10207.94, "bal_paddy": 9964.06}, {"code": "20314", "name": "Ravi Shankar Industries Katnapalli", "dist": "Peddapalli", "nat": "B", "avail": 21662.0, "cmr_del_qtl": 6938.39, "paddy_used": 10203.52, "bal_paddy": 11458.48}, {"code": "20346", "name": "Sai Gayathri Inds Kadambapur", "dist": "Peddapalli", "nat": "B", "avail": 22149.2, "cmr_del_qtl": 8672.29, "paddy_used": 12753.36, "bal_paddy": 9395.84}, {"code": "23199", "name": "MS VINOD TRADERS BHONGIR", "dist": "Yadadri Bhuvanagiri", "nat": "B", "avail": 73858.4, "cmr_del_qtl": 15582.49, "paddy_used": 22915.43, "bal_paddy": 50942.97}, {"code": "22047", "name": "Venkata Srinivasa Rice Industries, Gundrathimadugu village o", "dist": "Khammam", "nat": "R", "avail": 4664.0, "cmr_del_qtl": 1728.44, "paddy_used": 2579.76, "bal_paddy": 2084.24}, {"code": "22095", "name": "Sri Laxmi Ramana Modern Rice Mill, Tallada", "dist": "Khammam", "nat": "R", "avail": 6838.0, "cmr_del_qtl": 1737.42, "paddy_used": 2593.16, "bal_paddy": 4244.84}, {"code": "22009", "name": "Sree Sai Balaji Rice and Flour Mill, Kalluru", "dist": "Khammam", "nat": "R", "avail": 5257.6, "cmr_del_qtl": 1731.17, "paddy_used": 2583.84, "bal_paddy": 2673.76}];
 let NO_DSO_MILLS = [];
 
 function buildAllocFromUploads(){
