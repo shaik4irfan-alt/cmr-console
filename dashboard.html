@@ -4734,6 +4734,29 @@ function parseWLDetail(html){
   const uniqueMills  = new Set(parsed.map(r => r.fciCode || r.millName));
   const uniqueDepots = new Set(parsed.map(r => r.sfCode || r.depotName));
 
+  // A mill's nature (Boiled or Raw) is fixed — a mill delivers one or the
+  // other, never both at once. So "Boiled"/"Raw" counts must be UNIQUE
+  // mills with that nature, not row counts: a single mill can have several
+  // separate waiting-list bookings (multiple lots) of its one nature, and
+  // counting rows inflates Boiled+Raw past the true "Mills Waiting" total
+  // even though nothing is actually double-booked. Also flag (don't hide)
+  // any mill code that genuinely shows up under both natures — per the
+  // business rule that should never happen, so if it does it's a real
+  // data/parsing issue worth surfacing rather than silently miscounting.
+  const natByMill = {};
+  parsed.forEach(r => {
+    const k = r.fciCode || r.millName;
+    if(!natByMill[k]) natByMill[k] = new Set();
+    natByMill[k].add(r.nat);
+  });
+  const millKeys = Object.keys(natByMill);
+  const boiledUniqueMills = millKeys.filter(k => natByMill[k].has('Boiled')).length;
+  const rawUniqueMills    = millKeys.filter(k => natByMill[k].has('Raw')).length;
+  const mixedNatureMills  = millKeys.filter(k => natByMill[k].size > 1).length;
+  if(mixedNatureMills > 0){
+    console.warn('Waiting List Detailed: ' + mixedNatureMills + ' mill code(s) show BOTH Boiled and Raw entries — a mill should only ever have one nature. Check fciCode/millName parsing or the source file for these codes: ' + millKeys.filter(k => natByMill[k].size > 1).join(', '));
+  }
+
   return {
     rows: parsed,
     byDistrict,
@@ -4744,8 +4767,9 @@ function parseWLDetail(html){
       total_lots:    parsed.reduce((s,r)=>s+r.consLots, 0),
       total_qty:     parsed.reduce((s,r)=>s+r.consQty,  0),
       total_depots:  uniqueDepots.size,
-      boiled:        parsed.filter(r=>r.nat==='Boiled').length,
-      raw:           parsed.filter(r=>r.nat==='Raw').length,
+      boiled:        boiledUniqueMills,
+      raw:           rawUniqueMills,
+      mixed_nature:  mixedNatureMills,
       forego:        parsed.filter(r=>r.forego).length,
       no_scope:      parsed.filter(r=>r.reason==='No Scope').length,
       no_space:      parsed.filter(r=>r.reason==='No Space at L1').length,
@@ -4776,12 +4800,16 @@ function renderWLDetail(distFilter, depotFilter){
   const s = W.state;
 
   // ── KPI row ──
-  const kpiHtml = `
+  const mixedWarning = s.mixed_nature > 0 ? `
+  <div style="background:rgba(239,68,68,0.08);border:1.5px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--red);font-weight:700">
+    ⚠️ ${s.mixed_nature} mill code(s) show BOTH Boiled and Raw waiting entries — a mill should only ever have one nature. Check the source file / mill code mapping for these (see browser console for the exact codes).
+  </div>` : '';
+  const kpiHtml = mixedWarning + `
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
     ${[
       {l:'Mills Waiting',      v:s.total_mills,                              c:'var(--purple)',  click:'showWLDetail()'},
-      {l:'Boiled',             v:s.boiled,                                   c:'var(--teal)',    click:"showWLDetail(null,null,'Boiled')"},
-      {l:'Raw',                v:s.raw,                                      c:'var(--accent)',  click:"showWLDetail(null,null,'Raw')"},
+      {l:'Boiled (unique mills)', v:s.boiled,                                c:'var(--teal)',    click:"showWLDetail(null,null,'Boiled')"},
+      {l:'Raw (unique mills)', v:s.raw,                                      c:'var(--accent)',  click:"showWLDetail(null,null,'Raw')"},
       {l:'Total Lots',         v:s.total_lots.toLocaleString('en-IN'),       c:'var(--amber)',   click:null},
       {l:'Qty (Qtl)',          v:(s.total_qty/1000000).toFixed(2)+' LMT',   c:'var(--orange)',  click:null},
       {l:'Depots Congested',   v:s.total_depots,                             c:'var(--red)',     click:null},
