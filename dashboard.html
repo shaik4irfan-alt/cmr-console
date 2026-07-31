@@ -3411,7 +3411,7 @@ function renderOPMSPerf(){
     millSummary[code].statuses.add(r[28]); // r[28] = Process Status short code
     if(hasDate){
       const m=millSummary[code];
-      const nq=getNetQty(r);
+      const nq=getMCQty(r); // Moisture Cut Qty (Col Z) — the actual CMR-countable net delivery, not pre-cut Net Rice Qty
       m.total_qty+=nq; m.total_cons++;
       m.total_shortage+=(r[20]||0);        // U col — Shortage
       m.total_moisture_cut+=(r[7]>0&&r[25]>0?r[7]-r[25]:0); // H-Z = moisture deducted
@@ -3430,7 +3430,7 @@ function renderOPMSPerf(){
       if(r[28]==='IT') m.in_transit++;
       if(r[28]==='RQ'||r[28]==='AR') m.rejected++;
     }
-    if(dateInRange(r[14],from,to)){ millSummary[code].range_qty+=getNetQty(r); millSummary[code].range_cons++; }
+    if(dateInRange(r[14],from,to)){ millSummary[code].range_qty+=getMCQty(r); millSummary[code].range_cons++; }
   });
 
   // Mark zero delivery
@@ -3636,7 +3636,7 @@ function renderOPMSOverview(mills,total,cap,capMT,capRange,delivered,notDel,zero
     if(distF&&r[0]!==distF) return;
     if(natF&&natF!=='all'){const n=r[4]&&r[4].includes('PB')?'B':'R';if(n!==natF)return;}
     if(!r[14]||!r[14].match(/\d{2}-\d{2}-\d{4}/)) return; // r[14]=Dumping Date
-    const q=r[22]>0?r[22]:(r[7]>0?r[7]:0); // Net Rice Qty or fallback to dispatch Qty
+    const q=r[25]>0?r[25]:(r[22]>0?r[22]:(r[7]>0?r[7]:0)); // Moisture Cut Qty (Z) — actual CMR-countable net delivery
     if(!dateQty[r[14]]) dateQty[r[14]]={qty:0,mills:new Set(),cons:0};
     dateQty[r[14]].qty+=q;
     dateQty[r[14]].mills.add(r[1]);
