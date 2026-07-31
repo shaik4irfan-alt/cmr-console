@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMR Dashboard — Cross-Season Aggregate</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.season-pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.season-chip{display:flex;align-items:center;gap:6px;background:var(--surface);border:1.5px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.season-chip input{cursor:pointer}
+.season-card-mini{background:var(--surface);border:var(--border-w) solid var(--border);border-radius:var(--radius);padding:12px;box-shadow:var(--shadow-sm)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="hdr-left">
+    <a href="season-home.html" class="hdr-btn" style="text-decoration:none">← All Seasons</a>
+    <span class="hdr-title">📊 Cross-Season Aggregate</span>
+  </div>
+  <div class="hdr-right">
+    <span id="who" class="hdr-sub"></span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sec"><div class="sec-title">Seasons Included</div></div>
+  <div id="season-pick" class="season-pick"></div>
+
+  <div id="agg-list">
+    <div class="kpi-grid" id="agg-kpis"></div>
+
+    <div class="sec"><div class="sec-title">Districts — Aggregated Boiled &amp; Raw CMR Delivery</div></div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table id="dist-agg-tbl"></table></div></div>
+
+    <div class="sec"><div class="sec-title">Mills — Aggregated Boiled &amp; Raw CMR Delivery</div></div>
+    <div class="tbl-bar">
+      <input class="srch" id="mill-srch" placeholder="Search mill…" oninput="renderMillTable()">
+      <select class="sel" id="dist-filter" onchange="renderMillTable()"><option value="">All Districts</option></select>
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table id="mill-agg-tbl"></table></div></div>
+  </div>
+
+  <div id="agg-detail" style="display:none">
+    <button class="back-btn" onclick="showList()">← Back to Aggregate</button>
+    <div id="agg-detail-content"></div>
+  </div>
+</div>
+
+<script type="module" src="aggregate.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMR Dashboard — Login</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div style="position:fixed;inset:0;background:var(--bg);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:20px;overflow-y:auto;padding:60px 20px;min-height:100vh;">
+  <div style="font-size:28px;font-weight:900;color:var(--text);font-family:Nunito,sans-serif;">🔒 CMR Dashboard</div>
+  <div style="font-size:13px;color:var(--muted);">Telangana State · CMR Rice Delivery Monitoring</div>
+  <div style="background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:36px 40px;box-shadow:5px 5px 0 var(--border);display:flex;flex-direction:column;gap:16px;min-width:320px;">
+    <div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;margin-bottom:6px;">User ID</div>
+      <input id="login-user" type="text" placeholder="Enter User ID" autocomplete="off"
+        style="width:100%;background:var(--bg);border:2px solid var(--border);color:var(--text);padding:10px 14px;border-radius:6px;font-size:14px;outline:none;font-family:inherit"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.06em;margin-bottom:6px;">Password</div>
+      <input id="login-pass" type="password" placeholder="Enter Password" autocomplete="off"
+        style="width:100%;background:var(--bg);border:2px solid var(--border);color:var(--text);padding:10px 14px;border-radius:6px;font-size:14px;outline:none;font-family:inherit"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div id="login-err" style="font-size:12px;color:var(--red);min-height:16px;text-align:center"></div>
+    <button id="login-btn" onclick="doLogin()"
+      style="background:var(--accent);color:#fff;border:2px solid var(--border);padding:11px;box-shadow:3px 3px 0 var(--border);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Login</button>
+  </div>
+  <div style="font-size:11px;color:var(--dim);">Authorised users only</div>
+</div>
+
+<script type="module">
+  import { db, doc, getDoc, hashInput } from './firebase-init.js';
+  window.doLogin = async function doLogin(){
+    const u = document.getElementById('login-user').value.trim();
+    const p = document.getElementById('login-pass').value;
+    const err = document.getElementById('login-err');
+    const btn = document.getElementById('login-btn');
+    if(!u || !p){ err.textContent = '❌ Please enter User ID and Password'; return; }
+    btn.disabled = true; btn.textContent = 'Checking…';
+    try{
+      const snap = await getDoc(doc(db, 'users', u));
+      if(!snap.exists()){
+        err.textContent = '❌ Invalid User ID or Password';
+        return;
+      }
+      const stored = snap.data().passwordHash;
+      const h = await hashInput(u, p);
+      if(stored === h){
+        sessionStorage.setItem('cmr_user', u);
+        window.location.href = 'season-home.html';
+      } else {
+        err.textContent = '❌ Invalid User ID or Password';
+        document.getElementById('login-pass').value='';
+      }
+    } catch(e){
+      console.error(e);
+      err.textContent = '❌ Login failed — ' + e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Login';
+    }
+  };
+  // Already logged in? skip straight through.
+  if(sessionStorage.getItem('cmr_user')) window.location.href = 'season-home.html';
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMR Dashboard — Admin: Users</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div class="main" style="max-width:600px">
+  <div style="margin:30px 0 20px">
+    <div class="hdr-title" style="font-size:22px">🛠️ Admin — Create / Update Login</div>
+    <div class="hdr-sub">Writes a doc to Firestore <span class="mono">users/{userId}</span> with a SHA-256 <span class="mono">passwordHash</span> field. No auth gate on this page — keep the URL private, only share with whoever manages team logins.</div>
+  </div>
+
+  <div class="tbl-wrap" style="padding:20px">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <div class="kpi-lbl">User ID</div>
+        <input id="u-id" class="srch" style="width:100%" placeholder="e.g. tec_admin">
+      </div>
+      <div>
+        <div class="kpi-lbl">Password</div>
+        <input id="u-pass" type="password" class="srch" style="width:100%" placeholder="Choose a password">
+      </div>
+      <button class="go-btn" style="width:fit-content" onclick="createUser()">💾 Create / Update User</button>
+      <div id="u-status" style="font-size:13px"></div>
+    </div>
+  </div>
+
+  <div class="sec"><div class="sec-title">Existing Users</div></div>
+  <div class="tbl-wrap"><div class="tbl-scroll"><table id="u-tbl"></table></div></div>
+</div>
+
+<script type="module">
+  import { db, doc, setDoc, getDocs, deleteDoc, collection, hashInput, serverTimestamp } from './firebase-init.js';
+
+  window.createUser = async function(){
+    const id = document.getElementById('u-id').value.trim();
+    const pass = document.getElementById('u-pass').value;
+    const status = document.getElementById('u-status');
+    if(!id || !pass){ status.textContent = '❌ Enter both a user ID and a password.'; status.style.color='var(--red)'; return; }
+    status.textContent = '⏳ Hashing & saving…'; status.style.color='var(--muted)';
+    const passwordHash = await hashInput(id, pass);
+    await setDoc(doc(db, 'users', id), { passwordHash, updatedAt: serverTimestamp() }, { merge: true });
+    status.textContent = '✅ Saved user "' + id + '"';
+    status.style.color='var(--green2)';
+    document.getElementById('u-pass').value='';
+    loadUsers();
+  };
+
+  window.deleteUser = async function(id){
+    if(!confirm('Remove login for "'+id+'"?')) return;
+    await deleteDoc(doc(db,'users',id));
+    loadUsers();
+  };
+
+  async function loadUsers(){
+    const snap = await getDocs(collection(db,'users'));
+    let html = '<thead><tr><th>User ID</th><th>Updated</th><th></th></tr></thead><tbody>';
+    snap.forEach(d=>{
+      const data = d.data();
+      const upd = data.updatedAt?.toDate ? data.updatedAt.toDate().toLocaleString() : '—';
+      html += `<tr><td class="mono">${d.id}</td><td>${upd}</td><td><button class="hdr-btn" onclick="deleteUser('${d.id}')">Remove</button></td></tr>`;
+    });
+    html += '</tbody>';
+    document.getElementById('u-tbl').innerHTML = html;
+  }
+  loadUsers();
+</script>
+</body>
+</html>

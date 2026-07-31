@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Login lookups: app reads users/{id} to check passwordHash, and
+    // admin-users.html writes/deletes entries. No Firebase Auth exists in
+    // this app, so this can't be locked to "only admins" — anyone with the
+    // Firebase config could still call this directly. Keep the
+    // admin-users.html URL private and only share it with whoever manages
+    // team logins.
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasAll(['passwordHash'])
+                   && request.resource.data.passwordHash is string
+                   && request.resource.data.passwordHash.size() == 64;
+      allow delete: if true;
+    }
+
+    // Seasons list + metadata (name, dates, quick KPIs)
+    match /seasons/{seasonId} {
+      allow read, write, delete: if true;
+
+      // Parsed per-file season data, chunked docs: data/{fileType}_chunk_N
+      match /data/{chunkId} {
+        allow read, write, delete: if true;
+      }
+    }
+
+    // Cross-season mill/godown identity registries
+    match /millRegistry/{millCode} {
+      allow read, write: if true;
+    }
+    match /godownRegistry/{godownCode} {
+      allow read, write: if true;
+    }
+
+    // Everything else stays locked — no arbitrary collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
