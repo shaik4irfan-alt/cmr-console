@@ -2977,6 +2977,14 @@ function allocDistSort(k){
   renderAllocActive();
 }
 
+// ── NO DSO ALLOCATION TABLE (Alerts tab) ───────────────────────
+let noDsoSortKey='avail', noDsoSortDesc=true;
+function noDsoSortBy(k){
+  if(noDsoSortKey===k) noDsoSortDesc=!noDsoSortDesc;
+  else {noDsoSortKey=k; noDsoSortDesc=(k==='dist'||k==='code'||k==='name'||k==='nat')?false:true;}
+  renderAllocActive();
+}
+
 // ── MILL PERFORMANCE TABLE ────────────────────────────────────
 let allocMillPage=0, allocFilteredMills=[];
 const ALLOC_PG=30;
@@ -3182,18 +3190,38 @@ function renderAllocAlerts(mills){
     <div><div class="alert-title">No DSO Allocation — ${NO_DSO_MILLS.length} mills (Boiled: ${NO_DSO_MILLS.filter(m=>m.nat==='B').length}, Raw: ${NO_DSO_MILLS.filter(m=>m.nat==='R').length})</div>
     <div class="alert-body">These mills have paddy and capacity but no CMR allocation given yet. Without DSO allocation, they cannot deliver CMR to CSC or FCI.</div></div>
   </div>
-  <div class="tbl-wrap" style="margin-bottom:20px"><div class="tbl-scroll"><table>
-    <thead><tr><th>#</th><th>District</th><th>CSC Code</th><th>Mill Name</th><th>Type</th><th>Cap/Day (Qtl)</th><th>Available Paddy (Qtl)</th></tr></thead>
-    <tbody>${NO_DSO_MILLS.map((m,i)=>`<tr style="background:rgba(239,68,68,0.04)">
-      <td class="mono" style="color:var(--dim)">${i+1}</td>
-      <td style="font-size:12px">${m.dist}</td>
-      <td class="mono" style="color:var(--red);font-weight:700">${m.code}</td>
-      <td style="font-size:12px">${m.name}</td>
-      <td><span class="badge2" style="background:${m.nat==='B'?'rgba(20,184,166,.15)':'rgba(99,102,241,.15)'};color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
-      <td class="mono">${Math.round(m.cap_qtl).toLocaleString('en-IN')}</td>
-      <td class="mono" style="color:${m.avail>0?'var(--orange)':'var(--dim)'};font-weight:${m.avail>0?700:400}">${m.avail>0?fmtQtable(m.avail):'—'}</td>
-    </tr>`).join('')}</tbody>
-  </table></div></div>
+  ${(()=>{
+    const noDsoSorted=[...NO_DSO_MILLS].sort((a,b)=>{
+      const av=a[noDsoSortKey]??0, bv=b[noDsoSortKey]??0;
+      const cmp=typeof av==='string'?av.localeCompare(bv):av-bv;
+      return noDsoSortDesc?-cmp:cmp;
+    });
+    const arrow=k=>noDsoSortKey===k?(noDsoSortDesc?'▼':'▲'):'';
+    return `<div class="tbl-wrap" style="margin-bottom:20px">
+      <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--dim)">
+        ${noDsoSorted.length} mills · Click column header to sort
+      </div>
+      <div class="tbl-scroll"><table>
+      <thead><tr>
+        <th style="cursor:default">#</th>
+        <th onclick="noDsoSortBy('dist')" style="cursor:pointer">District ${arrow('dist')}</th>
+        <th onclick="noDsoSortBy('code')" style="cursor:pointer">CSC Code ${arrow('code')}</th>
+        <th onclick="noDsoSortBy('name')" style="cursor:pointer">Mill Name ${arrow('name')}</th>
+        <th onclick="noDsoSortBy('nat')" style="cursor:pointer">Type ${arrow('nat')}</th>
+        <th onclick="noDsoSortBy('cap_qtl')" style="cursor:pointer">Cap/Day (Qtl) ${arrow('cap_qtl')}</th>
+        <th onclick="noDsoSortBy('avail')" style="cursor:pointer">Available Paddy (Qtl) ${arrow('avail')}</th>
+      </tr></thead>
+      <tbody>${noDsoSorted.map((m,i)=>`<tr style="background:rgba(239,68,68,0.04)">
+        <td class="mono" style="color:var(--dim)">${i+1}</td>
+        <td style="font-size:12px">${m.dist}</td>
+        <td class="mono" style="color:var(--red);font-weight:700">${m.code}</td>
+        <td style="font-size:12px">${m.name}</td>
+        <td><span class="badge2" style="background:${m.nat==='B'?'rgba(20,184,166,.15)':'rgba(99,102,241,.15)'};color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
+        <td class="mono">${Math.round(m.cap_qtl).toLocaleString('en-IN')}</td>
+        <td class="mono" style="color:${m.avail>0?'var(--orange)':'var(--dim)'};font-weight:${m.avail>0?700:400}">${m.avail>0?fmtQtable(m.avail):'—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div>`;
+  })()}
 
   <div id="alert-paddyleft" class="alert-card warn" style="margin-bottom:12px">
     <div class="alert-icon">🌾</div>
