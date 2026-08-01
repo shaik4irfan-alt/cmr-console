@@ -3282,6 +3282,29 @@ function buildAllocFromUploads(){
   const src = [...(MM.mapped||[]), ...(MM.cscOnly||[])]; // MM.ig already excluded here
   window.ALLOC_IG = MM.ig || [];
 
+  // Per-mill delivered amounts, sourced from Miller Consignment Status
+  // (Col Z, Moisture Cut Qty — same corrected source as the aggregate
+  // Boiled/Raw CMR Accepted KPIs), not the Mill-Wise file's own AZ/BH
+  // columns which could be stale. This feeds every per-mill figure below
+  // (Pending, Days Needed, Will Miss Target / Low Delivery / On Track
+  // flags) so they use the same real delivery data as the totals above
+  // them, instead of disagreeing with a different source.
+  // Boiled stays FCI-only (no CSC Boiled target exists to compare
+  // against); Raw combines all departments — same scoping as Target.
+  const opmsAll = window.OPMS_UPLOADED || [];
+  const opmsUploaded = opmsAll.length > 0;
+  const opmsDelByMill = {}; // code -> {boiled, raw}
+  opmsAll.forEach(row=>{
+    const code = String(row[1]||'').trim(); if(!code) return;
+    if(!row[17]) return; // only rows that reached final acceptance (Stacking Date)
+    if(!opmsDelByMill[code]) opmsDelByMill[code] = {boiled:0, raw:0};
+    const isBoiled = row[4] && row[4].includes('PB');
+    const isRaw    = row[4] && row[4].includes('Raw');
+    const isFci    = classifyOpmsDept(row[30])==='FCI';
+    if(isBoiled && isFci) opmsDelByMill[code].boiled += (row[25]||0);
+    if(isRaw)             opmsDelByMill[code].raw    += (row[25]||0);
+  });
+
   let sno=0;
   const rows = [];
   src.forEach(m=>{
@@ -3307,8 +3330,16 @@ function buildAllocFromUploads(){
       // Boiled: target=AV[47], dumped=AW[48], delivered=AZ[51], balance=BA[52]
       // Raw:    target=BD[55]+M[12]+AD[29] (FCI+CSC-Central+CSC-State),
       //         dumped=BE[56], delivered=BH[59], balance=BI[60]
-      const dso    = nat==='B' ? (m.av_target||0)      : rawTargetTotal;
-      const del    = nat==='B' ? (m.boiled_del||0)     : (m.raw_del||0);
+      const dso = nat==='B' ? (m.av_target||0) : rawTargetTotal;
+      // Delivered: prefer the real Miller Consignment figure (opmsDelByMill,
+      // built above from Col Z). Only fall back to the Mill-Wise file's own
+      // AZ/BH column when no Miller Consignment file has been uploaded at
+      // all — once one has, an absent mill correctly reads as 0 delivered
+      // rather than silently reusing a possibly-stale Mill-Wise number.
+      const opmsDel = opmsDelByMill[m.c];
+      const del = opmsUploaded
+        ? (nat==='B' ? (opmsDel?.boiled||0) : (opmsDel?.raw||0))
+        : (nat==='B' ? (m.boiled_del||0)    : (m.raw_del||0));
       const dumped = nat==='B' ? (m.boiled_dumped||0)  : (m.raw_dumped||0);
       const bal    = dso - del;
       const pend   = Math.max(0, bal);
