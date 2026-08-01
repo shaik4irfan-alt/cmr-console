@@ -1340,7 +1340,17 @@ function handleFCIOverride(files) {
         window.FCI_OVERRIDE=results;
         document.getElementById('fci-src-label').textContent='Uploaded ('+files.length+' files, '+results.length+' records)';
         document.getElementById('fci-src-label').style.color='var(--green)';
-        if(MM) { MM=buildMapping(MM.mapped.concat(MM.cscOnly).map(m=>({d:m.d,c:m.c,n:m.n,t:m.t,cmr_del:m.cmr_del,has_cmr_del:m.has_cmr_del})),MM.ig); renderMMActive(); }
+        // Rebuild the CSC↔FCI mapping using the freshly uploaded FCI lookup,
+        // but keep every field each mill already had (paddy allocations,
+        // targets, capacity, delivered amounts, etc — everything from the
+        // Dy Allocation Mill Wise upload). This used to rebuild from a
+        // stripped-down copy keeping only 6 fields (d/c/n/t/cmr_del/
+        // has_cmr_del), silently discarding everything else the Mill Wise
+        // file provided — requiring a fresh Mill Wise re-upload afterward
+        // to restore it. buildMapping() itself already spreads the full
+        // mill object ({...m, fd, rd, rh, fn, fc}), so passing the
+        // complete objects through (instead of a stripped copy) is enough.
+        if(MM) { MM=buildMapping(MM.mapped.concat(MM.cscOnly),MM.ig); renderMMActive(); if(typeof buildAllocFromUploads==='function') buildAllocFromUploads(); if(typeof renderAllocActive==='function') renderAllocActive(); }
         alert('FCI files updated: '+results.length+' records loaded.');
       }
     };
