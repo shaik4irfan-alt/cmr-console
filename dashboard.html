@@ -2773,8 +2773,13 @@ function renderAllocState(mills, nat, noDsoList){
      c:'c-green', tab:null},
   );
   html += kpis.map(k=>{
+    // k.action is normally a bare function name (needs "()" appended), but
+    // some cards (No DSO Allocation, Paddy Left) set it to a full call like
+    // "showAlTab('alerts')" — appending "()" to that produced the broken
+    // "showAlTab('alerts')()" (calling the return value as a function,
+    // which throws). Only append "()" when action doesn't already have it.
     const click=k.action
-      ? `onclick="${k.action}()" style="cursor:pointer" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''"`
+      ? `onclick="${k.action}${k.action.includes('(')?'':'()'}" style="cursor:pointer" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''"`
       : k.tab
         ? `onclick="document.getElementById('alloc-flag-filter').value='${k.tab}';showAlTab('mills')" style="cursor:pointer" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''"`
         : '';
