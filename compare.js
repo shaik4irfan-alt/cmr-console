@@ -148,7 +148,7 @@ function renderKPIs() {
     if (t.unallocSeasons.length) unallocMillCount++;
   });
   const bal = Math.max(0, dso - del);
-  const fmt = v => (v / 100000).toFixed(2) + ' LMT';
+  const fmt = v => (v / 1000000).toFixed(2) + ' LMT'; // 1 LMT = 1,00,000 tonnes = 10,00,000 quintals
   document.getElementById('agg-kpis').innerHTML = `
     <div class="kpi c-purple"><div class="kpi-lbl">Seasons Included</div><div class="kpi-val">${selectedSeasonIds.size}</div></div>
     <div class="kpi c-blue"><div class="kpi-lbl">Total Unique Mills</div><div class="kpi-val">${totalMills}</div></div>
