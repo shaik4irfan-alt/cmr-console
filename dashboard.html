@@ -2451,12 +2451,20 @@ function renderAllocState(mills, nat, noDsoList){
   const bDSO  = b.reduce((s,m)=>s+m.dso,0);     // BJ — total CMR rice target for boiled mills
   const bDel  = b.reduce((s,m)=>s+m.del,0);     // BK — AZ total: Boiled CMR accepted at godown
   const bPend = b.reduce((s,m)=>s+m.pend,0);    // BL — balance boiled CMR still to deliver
-  const bDump = b.reduce((s,m)=>s+m.dumped,0);  // AW — Boiled CMR dumped at godown, awaiting QC
 
   const rDSO  = r.reduce((s,m)=>s+m.dso,0);     // BJ — total CMR rice target for raw mills
   const rDel  = r.reduce((s,m)=>s+m.del,0);     // BK — BH total: Raw CMR accepted at godown
   const rPend = r.reduce((s,m)=>s+m.pend,0);    // BL — balance raw CMR still to deliver
-  const rDump = r.reduce((s,m)=>s+m.dumped,0);  // BE — Raw CMR dumped at godown, awaiting QC
+
+  // "Dumped at Godown" (AW/BE) — sourced from Miller Consignment Status,
+  // combining EVERY uploaded department file (FCI/CSC-Central/CSC-State),
+  // not the Mill-Wise file's static AW/BE column (which only ever
+  // reflected whatever single figure that report last carried). Column D
+  // (Class Type) determines Boiled (PB*) vs Raw (Raw*); Column P (LWB
+  // Weight — the lorry-weighbridge weight on arrival) is the dump qty.
+  const opmsAllForDump = (window.OPMS_UPLOADED||OPMS_PRE).filter(row => !distF || row[0]===distF);
+  const bDump = opmsAllForDump.reduce((s,row)=> (row[4]&&row[4].includes('PB'))  ? s+(row[15]||0) : s, 0);
+  const rDump = opmsAllForDump.reduce((s,row)=> (row[4]&&row[4].includes('Raw')) ? s+(row[15]||0) : s, 0);
 
   // Paddy allocation breakdown by broken % spec — from AT/AU/BB/BC cols in mill-wise file
   const bPaddyAT = b.reduce((s,m)=>s+(m.at_paddy||0),0); // AT[45] — Boiled 16%broken paddy
@@ -2529,7 +2537,7 @@ function renderAllocState(mills, nat, noDsoList){
 
       {l:'🏭 Boiled Dumped at Godown (AW)',
        v:fmtQ(bDump),
-       s:`${bDumpPct}% of target · Delivered to godown, awaiting QC acceptance`,
+       s:`${bDumpPct}% of target · LWB Weight (Col P), all Miller Consignment files · awaiting QC acceptance`,
        c:'c-teal', tab:null},
 
       {l:'✅ Boiled CMR Accepted (AZ)',
@@ -2574,7 +2582,7 @@ function renderAllocState(mills, nat, noDsoList){
 
       {l:'🏭 Raw Dumped at Godown (BE)',
        v:fmtQ(rDump),
-       s:`${rDumpPct}% of target · Delivered to godown, awaiting QC acceptance`,
+       s:`${rDumpPct}% of target · LWB Weight (Col P), all Miller Consignment files · awaiting QC acceptance`,
        c:'c-teal', tab:null},
 
       {l:'✅ Raw CMR Accepted (BH)',
