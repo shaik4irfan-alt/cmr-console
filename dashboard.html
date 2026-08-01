@@ -2378,6 +2378,20 @@ function showAlTab(tab){
   renderAllocActive();
 }
 
+// The Alerts tab stacks several sections (Zero Delivery, Will Miss Target,
+// Low Delivery, High Dumped, No DSO Allocation, Paddy Left) — switching to
+// it alone always lands at the top (Zero Delivery), not the section the
+// clicked KPI card was actually about. This switches tab AND scrolls
+// straight to the named section, so "No DSO Allocation" opens on No DSO
+// Allocation, not whatever happens to be first on the page.
+function goToAlertSection(sectionId){
+  showAlTab('alerts');
+  setTimeout(()=>{
+    const el=document.getElementById(sectionId);
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 50);
+}
+
 function renderAllocDiagLine(){
   const el = document.getElementById('opms-diag-line');
   if(!el) return;
@@ -2766,13 +2780,15 @@ function renderAllocState(mills, nat, noDsoList){
      // 'No DSO' / 'Paddy Left' aren't real values in the alloc-flag-filter
      // dropdown, so routing through that filter (like the status KPIs
      // above) always matched nothing — these are genuinely different
-     // reports, rendered on the Alerts sub-tab, so jump straight there.
-     c:'c-red', action:"showAlTab('alerts')"},
+     // reports, rendered on the Alerts sub-tab. goToAlertSection also
+     // scrolls straight to this card's own section instead of leaving you
+     // at the top of the tab (Zero Delivery Mills).
+     c:'c-red', action:"goToAlertSection('alert-nodso')"},
 
     {l:'🌾 Paddy Left After CMR',
      v:paddyLeftCount,
      s:'Avail Paddy > 500 Qtl after CMR (On Track mills) · Needs fresh allocation',
-     c:'c-amber', action:"showAlTab('alerts')"},
+     c:'c-amber', action:"goToAlertSection('alert-paddyleft')"},
 
     {l:'✅ Total CMR Accepted (Boiled+Raw)',
      v:fmtQ(totalCMRAccepted),
