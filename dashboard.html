@@ -2442,7 +2442,7 @@ function renderAllocActive(){
   if(allocActiveTab==='state')    renderAllocState(mills, nat, filteredNoDso);
   else if(allocActiveTab==='district') renderAllocDistrict(mills, nat);
   else if(allocActiveTab==='mills')    renderAllocMills(mills);
-  else if(allocActiveTab==='alerts')   renderAllocAlerts(mills);
+  else if(allocActiveTab==='alerts')   renderAllocAlerts(mills, filteredNoDso);
   else if(allocActiveTab==='recon')    renderAllocRecon();
 }
 
@@ -3118,7 +3118,8 @@ function allocIGSectionHTML(){
 }
 
 // ── ALERTS ───────────────────────────────────────────────────
-function renderAllocAlerts(mills){
+function renderAllocAlerts(mills, noDsoList){
+  noDsoList = noDsoList || NO_DSO_MILLS;
   const zero  = mills.filter(m=>m.flag==='Zero Delivery').sort((a,b)=>b.dso-a.dso);
   const miss  = mills.filter(m=>m.flag==='Will Miss Target').sort((a,b)=>b.days_need-a.days_need);
   const low   = mills.filter(m=>m.flag==='Low Delivery').sort((a,b)=>a.del_pct-b.del_pct);
@@ -3232,11 +3233,11 @@ function renderAllocAlerts(mills){
 
   <div id="alert-nodso" class="alert-card danger" style="margin-bottom:12px">
     <div class="alert-icon">🚫</div>
-    <div><div class="alert-title">No DSO Allocation — ${NO_DSO_MILLS.length} mills (Boiled: ${NO_DSO_MILLS.filter(m=>m.nat==='B').length}, Raw: ${NO_DSO_MILLS.filter(m=>m.nat==='R').length})</div>
-    <div class="alert-body">These mills have paddy and capacity but no CMR allocation given yet. Without DSO allocation, they cannot deliver CMR to CSC or FCI.</div></div>
+    <div><div class="alert-title">No DSO Allocation — ${noDsoList.length} mills (Boiled: ${noDsoList.filter(m=>m.nat==='B').length}, Raw: ${noDsoList.filter(m=>m.nat==='R').length})</div>
+    <div class="alert-body">These mills have paddy and capacity but no CMR allocation given yet. Without DSO allocation, they cannot deliver CMR to CSC or FCI. Checked across FCI Boiled, FCI Raw, CSC-Central, and CSC-State target columns in the Dy Allocation Mill Wise file.</div></div>
   </div>
   ${(()=>{
-    const noDsoSorted=[...NO_DSO_MILLS].sort((a,b)=>{
+    const noDsoSorted=[...noDsoList].sort((a,b)=>{
       const av=a[noDsoSortKey]??0, bv=b[noDsoSortKey]??0;
       const cmp=typeof av==='string'?av.localeCompare(bv):av-bv;
       return noDsoSortDesc?-cmp:cmp;
