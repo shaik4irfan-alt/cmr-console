@@ -397,7 +397,10 @@ document.addEventListener('DOMContentLoaded', function(){
       <div style="display:flex;align-items:center;gap:8px">
         <span class="badge" data-dbg="LIVE-badge" data-line="362" data-sec="Header">LIVE</span>
         <span class="hdr-title" data-dbg="header-title" data-line="363" data-sec="Header">CMR Delivery Monitor</span>
-        <span class="hdr-tag" id="season-badge" style="background:var(--purple);color:#fff">Season</span>
+        <div style="position:relative;display:inline-block">
+          <span class="hdr-tag" id="season-badge" style="background:var(--purple);color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick="toggleSeasonSwitcher(event)">Season <span style="font-size:9px">▾</span></span>
+          <div id="season-switch-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;background:var(--surface);border:var(--border-w) solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:5000;min-width:200px;padding:6px;max-height:320px;overflow-y:auto"></div>
+        </div>
       </div>
       <div class="hdr-sub" id="hdr-sub" data-dbg="header-subtitle" data-line="365" data-sec="Header">Telangana State</div>
     </div>
@@ -6107,6 +6110,49 @@ document.addEventListener('keydown', e => {
     });
     window.location.href = 'dashboard.html?season=' + encodeURIComponent(id);
   };
+
+  // Season-switcher dropdown on the header badge — lets you jump straight
+  // to any other season without going through season-home.html or logging
+  // out. Season list is fetched lazily on first open and cached.
+  let seasonSwitchList = null;
+  window.toggleSeasonSwitcher = async function (e) {
+    if (e) e.stopPropagation();
+    const dd = document.getElementById('season-switch-dropdown');
+    const opening = dd.style.display === 'none';
+    if (!opening) { dd.style.display = 'none'; return; }
+    if (!seasonSwitchList) {
+      dd.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--dim)">Loading…</div>';
+      dd.style.display = 'block';
+      try {
+        const snap = await getDocs(query(collection(db, 'seasons'), orderBy('createdAt', 'desc')));
+        seasonSwitchList = [];
+        snap.forEach(d => seasonSwitchList.push({ id: d.id, name: d.data().name || d.id }));
+      } catch (e) { seasonSwitchList = []; }
+    }
+    dd.innerHTML = seasonSwitchList.length
+      ? seasonSwitchList.map(s => `
+          <div onclick="switchSeason('${s.id.replace(/'/g,"\\'")}')"
+               style="padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;${s.id===seasonId?'background:var(--purple);color:#fff':'color:var(--text)'}"
+               onmouseover="if('${s.id}'!=='${seasonId}')this.style.background='var(--bg2)'"
+               onmouseout="if('${s.id}'!=='${seasonId}')this.style.background=''">
+            ${s.id===seasonId?'✓':''} ${s.name}
+          </div>`).join('')
+      : '<div style="padding:8px;font-size:12px;color:var(--dim)">No seasons found</div>';
+    dd.innerHTML += `<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px">
+        <div onclick="openNewSeasonModal();toggleSeasonSwitcher()" style="padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)">+ New Season</div>
+      </div>`;
+    dd.style.display = 'block';
+  };
+  window.switchSeason = function (id) {
+    if (id === seasonId) { document.getElementById('season-switch-dropdown').style.display = 'none'; return; }
+    window.location.href = 'dashboard.html?season=' + encodeURIComponent(id);
+  };
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('season-switch-dropdown');
+    if (dd && dd.style.display !== 'none' && !dd.contains(e.target) && e.target.id !== 'season-badge') {
+      dd.style.display = 'none';
+    }
+  });
 
   // "📊 Compare Seasons" only makes sense once there's something to
   // compare — show it only when 2+ seasons exist.
