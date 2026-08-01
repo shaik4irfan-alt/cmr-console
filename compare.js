@@ -1,4 +1,4 @@
-import { db, collection, doc, getDocs, query, orderBy, readChunkedDoc, classifyOpmsDept } from './firebase-init.js';
+import { db, collection, doc, getDocs, query, orderBy, readChunkedDoc, classifyOpmsDept } from './firebase-init.js?v=20260802a';
 
 if (!sessionStorage.getItem('cmr_user')) window.location.replace('login.html');
 document.getElementById('who').textContent = '👤 ' + sessionStorage.getItem('cmr_user');
