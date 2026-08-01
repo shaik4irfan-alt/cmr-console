@@ -1196,6 +1196,13 @@ function handleUpload_mm_inner(raw) {
       raw_dumped:safeFloat(r[56]),     // BE — Raw CMR dumped at godown
       boiled_del:safeFloat(r[51]),     // AZ — Boiled CMR delivered & accepted
       raw_del:safeFloat(r[59]),        // BH — Raw CMR delivered & accepted
+      // M[12] / AD[29] = "Total Target to CSC Raw" — CSC-Central and
+      // CSC-State each carry their own Raw target column (confirmed
+      // against a real Dy Allocation Mill Wise file: both CSC blocks are
+      // entirely raw-focused, no equivalent Boiled target exists for
+      // CSC). Read fresh from every upload, never hardcoded.
+      csc_c_target:safeFloat(r[12]),   // M — CSC-Central Raw CMR target
+      csc_s_target:safeFloat(r[29]),   // AD — CSC-State Raw CMR target
       // BJ[61] = AV[47] + BD[55] — total across both boiled and raw for this mill
       // Store AV and BD separately so bDSO and rDSO can sum the right column
       av_target:safeFloat(r[47]),   // AV — FCI Boiled CMR rice target (AT×68% + AU×60.13%)
@@ -2470,32 +2477,26 @@ function renderAllocState(mills, nat, noDsoList){
   const bDSO  = b.reduce((s,m)=>s+m.dso,0);     // BJ — total CMR rice target for boiled mills
   const rDSO  = r.reduce((s,m)=>s+m.dso,0);     // BJ — total CMR rice target for raw mills
 
-  // "Dumped at Godown" (AW/BE) and "CMR Accepted" (AZ/BH) — both sourced
-  // from Miller Consignment Status, combining EVERY uploaded department
-  // file (FCI/CSC-Central/CSC-State), not the Mill-Wise file's static
-  // AW/AZ/BE/BH columns (which only ever reflected whatever single figure
-  // that report last carried). Column D (Class Type) determines Boiled
+  // "Dumped at Godown" (AW/BE) and "CMR Accepted" (AZ/BH) — sourced from
+  // Miller Consignment Status. Column D (Class Type) determines Boiled
   // (PB*) vs Raw (Raw*). Column P (LWB Weight) is the dump qty; Column Z
   // (Moisture Cut Qty) is the final accepted qty, counted only for rows
   // that reached final acceptance (Stacking Date, Col R, present) — same
   // gate already used by the "Total CMR Accepted" card.
   //
-  // Scoped to FCI-department rows only (combined across every FCI file
-  // uploaded, if more than one) — AW/AZ/BE/BH are specifically the
-  // Mill-Wise file's "FCI Boiled"/"FCI Raw" columns, and Target (AV/BD)
-  // is FCI-only too, so Accepted/Dumped must stay FCI-only here to be a
-  // valid comparison against Target — otherwise CSC-Central/CSC-State
-  // deliveries (which have no corresponding target in this file) would
-  // make Accepted exceed Target, which isn't possible in reality. The
-  // full multi-department totals are already shown separately in the
-  // "FCI Deliveries" / "Total CSC Deliveries" cards below.
-  const opmsAllForAlloc = (window.OPMS_UPLOADED||OPMS_PRE).filter(row =>
-    (!distF || row[0]===distF) && classifyOpmsDept(row[30])==='FCI'
-  );
-  const bDump = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('PB'))  ? s+(row[15]||0) : s, 0);
-  const rDump = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('Raw')) ? s+(row[15]||0) : s, 0);
-  const bDel  = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('PB')  && row[17]) ? s+(row[25]||0) : s, 0);
-  const rDel  = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('Raw') && row[17]) ? s+(row[25]||0) : s, 0);
+  // Department scope must match what Target actually covers, verified
+  // against a real Dy Allocation Mill Wise file:
+  //  - Boiled Target (AV) is FCI-only — no CSC Boiled target column
+  //    exists in that file — so Boiled Accepted/Dumped stay FCI-only too.
+  //  - Raw Target (BD + CSC-Central col M + CSC-State col AD) now covers
+  //    all three departments (see buildAllocFromUploads), so Raw
+  //    Accepted/Dumped combine all uploaded department files to match.
+  const opmsDistFiltered = (window.OPMS_UPLOADED||OPMS_PRE).filter(row => !distF || row[0]===distF);
+  const opmsFciOnly = opmsDistFiltered.filter(row => classifyOpmsDept(row[30])==='FCI');
+  const bDump = opmsFciOnly.reduce((s,row)=> (row[4]&&row[4].includes('PB'))  ? s+(row[15]||0) : s, 0);
+  const bDel  = opmsFciOnly.reduce((s,row)=> (row[4]&&row[4].includes('PB')  && row[17]) ? s+(row[25]||0) : s, 0);
+  const rDump = opmsDistFiltered.reduce((s,row)=> (row[4]&&row[4].includes('Raw')) ? s+(row[15]||0) : s, 0);
+  const rDel  = opmsDistFiltered.reduce((s,row)=> (row[4]&&row[4].includes('Raw') && row[17]) ? s+(row[25]||0) : s, 0);
   // Pending recomputed against the new OPMS-derived Accepted figure so
   // Accepted + Pending stays consistent with the displayed Target.
   const bPend = Math.max(0, bDSO - bDel);       // BL — balance boiled CMR still to deliver
@@ -2610,19 +2611,19 @@ function renderAllocState(mills, nat, noDsoList){
        s:'FCI raw rice mills · Excl. IG Godowns',
        c:'c-accent', tab:null},
 
-      {l:'🌾 Raw CMR Target (BD→BJ)',
+      {l:'🌾 Raw CMR Target (BD+CSC-C+CSC-S)',
        v:fmtQ(rDSO),
-       s:rPaddySub,
+       s:rPaddySub + ' · Incl. CSC-Central (Col M) + CSC-State (Col AD) targets',
        c:'c-blue', tab:null},
 
       {l:'🏭 Raw Dumped at Godown (BE)',
        v:fmtQ(rDump),
-       s:`${rDumpPct}% of target · LWB Weight (Col P), FCI Miller Consignment files · awaiting QC acceptance`,
+       s:`${rDumpPct}% of target · LWB Weight (Col P), all Miller Consignment files (FCI+CSC) · awaiting QC acceptance`,
        c:'c-teal', tab:null},
 
       {l:'✅ Raw CMR Accepted (BH)',
        v:fmtQ(rDel),
-       s:`${rPct}% of CMR target · Moisture Cut Qty (Col Z), FCI Miller Consignment files · Stacked & accepted`,
+       s:`${rPct}% of CMR target · Moisture Cut Qty (Col Z), all Miller Consignment files (FCI+CSC) · Stacked & accepted`,
        c:'c-green', tab:null},
 
       {l:'⏳ Raw CMR Pending (BL)',
@@ -3242,11 +3243,17 @@ function buildAllocFromUploads(){
     // replaces the primary entry.
     const primaryNat = m.t==='Boiled' ? 'B' : 'R';
 
+    // Raw target = FCI (BD) + CSC-Central (M) + CSC-State (AD) — all three
+    // are real Raw allocation columns in the Mill-Wise file. Boiled target
+    // stays FCI-only (AV) — the file has no CSC target column for Boiled.
+    const rawTargetTotal = (m.bd_target||0) + (m.csc_c_target||0) + (m.csc_s_target||0);
+
     function buildEntry(nat){
       sno++;
       // Boiled: target=AV[47], dumped=AW[48], delivered=AZ[51], balance=BA[52]
-      // Raw:    target=BD[55], dumped=BE[56], delivered=BH[59], balance=BI[60]
-      const dso    = nat==='B' ? (m.av_target||0)      : (m.bd_target||0);
+      // Raw:    target=BD[55]+M[12]+AD[29] (FCI+CSC-Central+CSC-State),
+      //         dumped=BE[56], delivered=BH[59], balance=BI[60]
+      const dso    = nat==='B' ? (m.av_target||0)      : rawTargetTotal;
       const del    = nat==='B' ? (m.boiled_del||0)     : (m.raw_del||0);
       const dumped = nat==='B' ? (m.boiled_dumped||0)  : (m.raw_dumped||0);
       const bal    = dso - del;
@@ -3265,6 +3272,8 @@ function buildAllocFromUploads(){
         bc_paddy:m.bc_paddy||0,     // BC[54] Raw 10%broken paddy
         av_target:m.av_target||0,   // AV[47] FCI Boiled CMR rice target for this mill
         bd_target:m.bd_target||0,   // BD[55] FCI Raw CMR rice target for this mill
+        csc_c_target:m.csc_c_target||0, // M[12] CSC-Central Raw CMR target
+        csc_s_target:m.csc_s_target||0, // AD[29] CSC-State Raw CMR target
         dual: nat!==primaryNat,      // flags this as the mill's secondary/dual-nature entry
         del,dso,bal,pend,cpd,days_need,del_pct,flag:'In Progress'};
     }
@@ -3274,7 +3283,7 @@ function buildAllocFromUploads(){
     const otherNat = primaryNat==='B' ? 'R' : 'B';
     const otherHasActivity = otherNat==='B'
       ? ((m.av_target||0)>0 || (m.boiled_del||0)>0 || (m.boiled_dumped||0)>0)
-      : ((m.bd_target||0)>0 || (m.raw_del||0)>0    || (m.raw_dumped||0)>0);
+      : (rawTargetTotal>0   || (m.raw_del||0)>0    || (m.raw_dumped||0)>0);
     if(otherHasActivity) rows.push(buildEntry(otherNat));
   });
 
