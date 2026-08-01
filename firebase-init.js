@@ -106,32 +106,41 @@ async function deleteChunked(dbRef, refs) {
   }
 }
 
+// Writes chunks BEFORE the _meta doc, and only deletes now-orphaned old
+// chunks AFTER the new _meta commit succeeds. This way, if a batch commit
+// fails partway (network blip, quota), _meta still points at the last
+// complete, readable chunk set instead of claiming a chunkCount whose
+// later chunks were never actually written (which produced truncated
+// JSON on read — see the khariff-25-26 OPMS corruption incident).
 export async function writeChunkedDoc(seasonId, fileType, dataObj) {
   const json = JSON.stringify(dataObj);
   const dataCol = collection(db, 'seasons', seasonId, 'data');
 
-  // Clear any previous chunks for this fileType first (replace, not append)
   const existing = await getDocs(query(dataCol));
-  const delRefs = [];
+  const oldChunkIndices = [];
   existing.forEach(d => {
-    if (d.id === fileType || d.id.startsWith(fileType + '_chunk_')) delRefs.push(d.ref);
+    const m = d.id.match(new RegExp('^' + fileType + '_chunk_(\\d+)$'));
+    if (m) oldChunkIndices.push(parseInt(m[1], 10));
   });
-  if (delRefs.length) await deleteChunked(db, delRefs);
 
   const chunks = chunkByUtf8Bytes(json, CHUNK_BYTES);
   const totalBytes = chunks.reduce((s, c) => s + c.bytes, 0);
 
-  const writes = [
-    { ref: doc(dataCol, fileType + '_meta'),
-      data: { fileType, chunkCount: chunks.length, updatedAt: serverTimestamp(), bytes: totalBytes },
-      sizeBytes: 200 },
-    ...chunks.map((c, i) => ({
-      ref: doc(dataCol, fileType + '_chunk_' + i),
-      data: { fileType, i, part: c.text },
-      sizeBytes: c.bytes + 150, // + doc path / protobuf envelope overhead
-    })),
-  ];
-  await commitChunked(db, writes);
+  const chunkWrites = chunks.map((c, i) => ({
+    ref: doc(dataCol, fileType + '_chunk_' + i),
+    data: { fileType, i, part: c.text },
+    sizeBytes: c.bytes + 150, // + doc path / protobuf envelope overhead
+  }));
+  await commitChunked(db, chunkWrites);
+
+  // Only after every chunk is confirmed written does _meta advertise the new chunkCount.
+  await setDoc(doc(dataCol, fileType + '_meta'), {
+    fileType, chunkCount: chunks.length, updatedAt: serverTimestamp(), bytes: totalBytes,
+  });
+
+  const staleRefs = oldChunkIndices.filter(i => i >= chunks.length).map(i => doc(dataCol, fileType + '_chunk_' + i));
+  if (staleRefs.length) await deleteChunked(db, staleRefs);
+
   return { chunkCount: chunks.length, bytes: totalBytes };
 }
 
