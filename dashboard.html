@@ -2576,14 +2576,18 @@ function renderAllocState(mills, nat, noDsoList){
   //   'rejected' — mill has records, but every one was rejected.
   // Both count toward "Never Delivered" overall, but are broken out
   // separately in the subtitle so the two cases stay distinguishable.
-  // Scoped the same as Target/Accepted above: Boiled = FCI-only records,
-  // Raw = all departments (FCI+CSC-Central+CSC-State).
+  //
+  // This checks whether the MILL is delivering anything at all — a mill
+  // registered as Boiled that only delivers Raw (in any department) is
+  // still actively delivering, not "never delivered", so this deliberately
+  // does NOT filter by Class Type (PB/Raw) or department: any consignment
+  // record for that mill code, of any nature, counts as evidence it isn't
+  // absent. (Target/Accepted amounts elsewhere still stay nature-scoped —
+  // this "did they deliver anything" check is a different question.)
   const boiledMillCodes = mmMills.filter(m=>String(m.t||'').toLowerCase().includes('boiled')).map(m=>m.c);
   const rawMillCodes    = mmMills.filter(m=>String(m.t||'').toLowerCase().includes('raw')).map(m=>m.c);
-  const opmsFciBoiledRows = opmsFciOnly.filter(row=>row[4]&&row[4].includes('PB'));
-  const opmsRawRowsAllDept = opmsDistFiltered.filter(row=>row[4]&&row[4].includes('Raw'));
-  const opmsStatusB = classifyOpmsMillStatus(opmsFciBoiledRows, boiledMillCodes);
-  const opmsStatusR = classifyOpmsMillStatus(opmsRawRowsAllDept, rawMillCodes);
+  const opmsStatusB = classifyOpmsMillStatus(opmsDistFiltered, boiledMillCodes);
+  const opmsStatusR = classifyOpmsMillStatus(opmsDistFiltered, rawMillCodes);
   const bAbsentCount   = boiledMillCodes.filter(c=>opmsStatusB[c]==='absent').length;
   const bRejectedCount = boiledMillCodes.filter(c=>opmsStatusB[c]==='rejected').length;
   const rAbsentCount   = rawMillCodes.filter(c=>opmsStatusR[c]==='absent').length;
