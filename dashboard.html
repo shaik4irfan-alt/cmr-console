@@ -2990,6 +2990,17 @@ function noDsoSortBy(k){
   renderAllocActive();
 }
 
+// ── SORTABLE ALERT TABLES (Zero Delivery, Will Miss Target, Low
+// Delivery, High Dumped — Alerts tab) ───────────────────────────
+function alertTableSort(sortId, k){
+  if(!window.__alertSort) window.__alertSort = {};
+  if(!window.__alertSort[sortId]) window.__alertSort[sortId] = {key:k, desc:true};
+  const state = window.__alertSort[sortId];
+  if(state.key===k) state.desc = !state.desc;
+  else { state.key = k; state.desc = (k==='dist'||k==='code'||k==='name'||k==='nat')?false:true; }
+  renderAllocActive();
+}
+
 // ── MILL PERFORMANCE TABLE ────────────────────────────────────
 let allocMillPage=0, allocFilteredMills=[];
 const ALLOC_PG=30;
@@ -3124,11 +3135,29 @@ function renderAllocAlerts(mills){
     .filter(m => m.bal_paddy > 500)
     .sort((a,b) => b.bal_paddy - a.bal_paddy);
 
-  function alertTable(data, cols, rowFn, colFn){
+  // Sortable, uncapped alert table. Each alert section (Zero Delivery,
+  // Will Miss Target, Low Delivery, High Dumped) keeps its own sort state
+  // in window.__alertSort, keyed by sortId, so sorting one doesn't affect
+  // the others. `keys` is parallel to `cols` — the mill field each column
+  // sorts by, or null for columns that aren't sortable (e.g. '#').
+  // Previously this sliced to the first 50 rows with no indication, which
+  // silently hid most mills (e.g. 211 of 261 Zero Delivery mills) — now
+  // shows every row, sorted, with the true count visible above the table.
+  function alertTable(data, cols, rowFn, sortId, keys, defaultKey, defaultDesc){
     if(!data.length) return `<div style="color:var(--dim);padding:16px;font-size:13px">None found ✅</div>`;
-    return `<div class="tbl-scroll"><table>
-      <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-      <tbody>${data.slice(0,50).map((m,i)=>`<tr>${rowFn(m,i)}</tr>`).join('')}</tbody>
+    if(!window.__alertSort) window.__alertSort = {};
+    if(!window.__alertSort[sortId]) window.__alertSort[sortId] = {key: defaultKey||null, desc: defaultDesc!==false};
+    const state = window.__alertSort[sortId];
+    const sorted = state.key ? [...data].sort((a,b)=>{
+      const av=a[state.key]??0, bv=b[state.key]??0;
+      const cmp = typeof av==='string' ? av.localeCompare(bv) : av-bv;
+      return state.desc ? -cmp : cmp;
+    }) : data;
+    const arrow = k => state.key===k ? (state.desc?'▼':'▲') : '';
+    return `<div style="padding:6px 2px;font-size:12px;color:var(--dim)">${sorted.length} mills · Click column header to sort</div>
+    <div class="tbl-scroll"><table>
+      <thead><tr>${cols.map((c,i)=>keys&&keys[i]?`<th onclick="alertTableSort('${sortId}','${keys[i]}')" style="cursor:pointer">${c} ${arrow(keys[i])}</th>`:`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${sorted.map((m,i)=>`<tr>${rowFn(m,i)}</tr>`).join('')}</tbody>
     </table></div>`;
   }
 
@@ -3145,7 +3174,8 @@ function renderAllocAlerts(mills){
       <td class="mono" style="color:var(--red)">${fmtQtable(m.dso)}</td>
       <td class="mono">${fmtQtable(m.avail)}</td>
       <td class="mono">${m.cap_t}</td>
-      <td class="mono" style="color:${m.days_need<=allocDaysRem?'var(--green)':'var(--red)'}">${m.days_need}d</td>`
+      <td class="mono" style="color:${m.days_need<=allocDaysRem?'var(--green)':'var(--red)'}">${m.days_need}d</td>`,
+    'zero', [null,'dist','code','name','nat','dso','avail','cap_t','days_need'], 'dso', true
   )}</div>
 
   <div class="alert-card danger" style="margin-bottom:12px">
@@ -3160,7 +3190,8 @@ function renderAllocAlerts(mills){
       <td class="mono" style="color:var(--amber)">${fmtQtable(m.pend)}</td>
       <td class="mono">${m.cpd.toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
       <td class="mono" style="color:var(--red);font-weight:600">${m.days_need}d</td>
-      <td class="mono" style="color:var(--green)">${allocDaysRem}d</td>`
+      <td class="mono" style="color:var(--green)">${allocDaysRem}d</td>`,
+    'miss', [null,'dist','code','name','nat','pend','cpd','days_need',null], 'days_need', true
   )}</div>
 
   <div class="alert-card warn" style="margin-bottom:12px">
@@ -3174,7 +3205,8 @@ function renderAllocAlerts(mills){
       <td class="mono">${fmtQtable(m.dso)}</td>
       <td class="mono" style="color:var(--green)">${fmtQtable(m.del)}</td>
       <td>${pBar(m.del_pct)}</td>
-      <td class="mono" style="color:${m.days_need<=allocDaysRem?'var(--green)':'var(--red)'}">${m.days_need}d</td>`
+      <td class="mono" style="color:${m.days_need<=allocDaysRem?'var(--green)':'var(--red)'}">${m.days_need}d</td>`,
+    'low', [null,'dist','code','name','nat','dso','del','del_pct','days_need'], 'del_pct', false
   )}</div>
 
   ${hiDump.length>0?`
@@ -3187,7 +3219,8 @@ function renderAllocAlerts(mills){
     (m,i)=>`<td class="mono" style="color:var(--dim)">${i+1}</td><td style="font-size:12px">${m.dist}</td><td class="mono" style="color:var(--accent);font-weight:600">${m.code}</td><td style="font-size:12px">${m.name}</td>
       <td><span style="color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
       <td class="mono" style="color:var(--teal);font-weight:600">${fmtQtable(m.dumped)}</td>
-      <td class="mono" style="color:var(--red)">0</td>`
+      <td class="mono" style="color:var(--red)">0</td>`,
+    'hiDump', [null,'dist','code','name','nat','dumped',null], 'dumped', true
   )}</div>`:''}
 
   <div id="alert-nodso" class="alert-card danger" style="margin-bottom:12px">
