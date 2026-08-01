@@ -3185,33 +3185,54 @@ function buildAllocFromUploads(){
   window.ALLOC_IG = MM.ig || [];
 
   let sno=0;
-  const rows = src.map(m=>{
-    sno++;
-    const nat = m.t==='Boiled' ? 'B' : 'R';
-    // Use nature-specific columns to avoid dual-purpose mill double-counting:
-    // Boiled: target=AV[47], dumped=AW[48], delivered=AZ[51], balance=BA[52]
-    // Raw:    target=BD[55], dumped=BE[56], delivered=BH[59], balance=BI[60]
-    // BJ/BK/BL are totals (AV+BD, AZ+BH, BA+BI) — only used as overall reference
-    const dso    = nat==='B' ? (m.av_target||0)      : (m.bd_target||0);
-    const del    = nat==='B' ? (m.boiled_del||0)     : (m.raw_del||0);
-    const dumped = nat==='B' ? (m.boiled_dumped||0)  : (m.raw_dumped||0);
-    const bal    = dso - del;
-    const pend   = Math.max(0, bal);
-    const cap_t = parseFloat(String(m.cap_desc||'').replace(/[^0-9.]/g,''))||0;
-    const cap_q = cap_t*10;
-    const cpd = m.cpd || (cap_t*6.8);
-    const del_pct = dso>0 ? Math.round(del/dso*1000)/10 : 0;
-    const days_need = (pend>0 && cpd>0) ? Math.round(pend/cpd*10)/10 : 0;
-    return {sno,dist:m.d,code:m.c,name:m.n,nat,cap_t,cap_q,
-      opms:m.opms||0,avail:m.avail||0,dumped,
-      // Paddy alloc breakdown by broken % spec — for KPI subtitle display
-      at_paddy:m.at_paddy||0,     // AT[45] Boiled 16%broken paddy
-      au_paddy:m.au_paddy||0,     // AU[46] Boiled 5%broken paddy
-      bb_paddy:m.bb_paddy||0,     // BB[53] Raw 25%broken paddy
-      bc_paddy:m.bc_paddy||0,     // BC[54] Raw 10%broken paddy
-      av_target:m.av_target||0,   // AV[47] FCI Boiled CMR rice target for this mill
-      bd_target:m.bd_target||0,   // BD[55] FCI Raw CMR rice target for this mill
-      del,dso,bal,pend,cpd,days_need,del_pct,flag:'In Progress'};
+  const rows = [];
+  src.forEach(m=>{
+    // Every mill row from the Mill-Wise file already carries BOTH Boiled
+    // (AV/AZ) and Raw (BD/BH) columns — m.t just says which nature the
+    // mill is primarily registered as. A mill CAN be allocated/deliver
+    // the other nature too (a Boiled miller with a Raw DSO allocation,
+    // or vice versa) — that used to be silently discarded here, since
+    // only the primary nature's columns were ever read. Now: always
+    // build the primary-nature entry (unchanged), and ADDITIONALLY build
+    // a second entry for the other nature whenever it has any real
+    // activity (target, delivered, or dumped > 0) — additive, never
+    // replaces the primary entry.
+    const primaryNat = m.t==='Boiled' ? 'B' : 'R';
+
+    function buildEntry(nat){
+      sno++;
+      // Boiled: target=AV[47], dumped=AW[48], delivered=AZ[51], balance=BA[52]
+      // Raw:    target=BD[55], dumped=BE[56], delivered=BH[59], balance=BI[60]
+      const dso    = nat==='B' ? (m.av_target||0)      : (m.bd_target||0);
+      const del    = nat==='B' ? (m.boiled_del||0)     : (m.raw_del||0);
+      const dumped = nat==='B' ? (m.boiled_dumped||0)  : (m.raw_dumped||0);
+      const bal    = dso - del;
+      const pend   = Math.max(0, bal);
+      const cap_t = parseFloat(String(m.cap_desc||'').replace(/[^0-9.]/g,''))||0;
+      const cap_q = cap_t*10;
+      const cpd = m.cpd || (cap_t*6.8);
+      const del_pct = dso>0 ? Math.round(del/dso*1000)/10 : 0;
+      const days_need = (pend>0 && cpd>0) ? Math.round(pend/cpd*10)/10 : 0;
+      return {sno,dist:m.d,code:m.c,name:m.n,nat,cap_t,cap_q,
+        opms:m.opms||0,avail:m.avail||0,dumped,
+        // Paddy alloc breakdown by broken % spec — for KPI subtitle display
+        at_paddy:m.at_paddy||0,     // AT[45] Boiled 16%broken paddy
+        au_paddy:m.au_paddy||0,     // AU[46] Boiled 5%broken paddy
+        bb_paddy:m.bb_paddy||0,     // BB[53] Raw 25%broken paddy
+        bc_paddy:m.bc_paddy||0,     // BC[54] Raw 10%broken paddy
+        av_target:m.av_target||0,   // AV[47] FCI Boiled CMR rice target for this mill
+        bd_target:m.bd_target||0,   // BD[55] FCI Raw CMR rice target for this mill
+        dual: nat!==primaryNat,      // flags this as the mill's secondary/dual-nature entry
+        del,dso,bal,pend,cpd,days_need,del_pct,flag:'In Progress'};
+    }
+
+    rows.push(buildEntry(primaryNat));
+
+    const otherNat = primaryNat==='B' ? 'R' : 'B';
+    const otherHasActivity = otherNat==='B'
+      ? ((m.av_target||0)>0 || (m.boiled_del||0)>0 || (m.boiled_dumped||0)>0)
+      : ((m.bd_target||0)>0 || (m.raw_del||0)>0    || (m.raw_dumped||0)>0);
+    if(otherHasActivity) rows.push(buildEntry(otherNat));
   });
 
   ALLOC_DATA = {meta:{}, boiled: rows.filter(r=>r.nat==='B'), raw: rows.filter(r=>r.nat==='R')};
