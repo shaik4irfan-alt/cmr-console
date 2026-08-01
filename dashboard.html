@@ -2460,7 +2460,19 @@ function renderAllocState(mills, nat, noDsoList){
   // (Moisture Cut Qty) is the final accepted qty, counted only for rows
   // that reached final acceptance (Stacking Date, Col R, present) — same
   // gate already used by the "Total CMR Accepted" card.
-  const opmsAllForAlloc = (window.OPMS_UPLOADED||OPMS_PRE).filter(row => !distF || row[0]===distF);
+  //
+  // Scoped to FCI-department rows only (combined across every FCI file
+  // uploaded, if more than one) — AW/AZ/BE/BH are specifically the
+  // Mill-Wise file's "FCI Boiled"/"FCI Raw" columns, and Target (AV/BD)
+  // is FCI-only too, so Accepted/Dumped must stay FCI-only here to be a
+  // valid comparison against Target — otherwise CSC-Central/CSC-State
+  // deliveries (which have no corresponding target in this file) would
+  // make Accepted exceed Target, which isn't possible in reality. The
+  // full multi-department totals are already shown separately in the
+  // "FCI Deliveries" / "Total CSC Deliveries" cards below.
+  const opmsAllForAlloc = (window.OPMS_UPLOADED||OPMS_PRE).filter(row =>
+    (!distF || row[0]===distF) && classifyOpmsDept(row[30])==='FCI'
+  );
   const bDump = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('PB'))  ? s+(row[15]||0) : s, 0);
   const rDump = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('Raw')) ? s+(row[15]||0) : s, 0);
   const bDel  = opmsAllForAlloc.reduce((s,row)=> (row[4]&&row[4].includes('PB')  && row[17]) ? s+(row[25]||0) : s, 0);
@@ -2541,12 +2553,12 @@ function renderAllocState(mills, nat, noDsoList){
 
       {l:'🏭 Boiled Dumped at Godown (AW)',
        v:fmtQ(bDump),
-       s:`${bDumpPct}% of target · LWB Weight (Col P), all Miller Consignment files · awaiting QC acceptance`,
+       s:`${bDumpPct}% of target · LWB Weight (Col P), FCI Miller Consignment files · awaiting QC acceptance`,
        c:'c-teal', tab:null},
 
       {l:'✅ Boiled CMR Accepted (AZ)',
        v:fmtQ(bDel),
-       s:`${bPct}% of CMR target · Moisture Cut Qty (Col Z), all Miller Consignment files · Stacked & accepted`,
+       s:`${bPct}% of CMR target · Moisture Cut Qty (Col Z), FCI Miller Consignment files · Stacked & accepted`,
        c:'c-green', tab:null},
 
       {l:'⏳ Boiled CMR Pending (BL)',
@@ -2586,12 +2598,12 @@ function renderAllocState(mills, nat, noDsoList){
 
       {l:'🏭 Raw Dumped at Godown (BE)',
        v:fmtQ(rDump),
-       s:`${rDumpPct}% of target · LWB Weight (Col P), all Miller Consignment files · awaiting QC acceptance`,
+       s:`${rDumpPct}% of target · LWB Weight (Col P), FCI Miller Consignment files · awaiting QC acceptance`,
        c:'c-teal', tab:null},
 
       {l:'✅ Raw CMR Accepted (BH)',
        v:fmtQ(rDel),
-       s:`${rPct}% of CMR target · Moisture Cut Qty (Col Z), all Miller Consignment files · Stacked & accepted`,
+       s:`${rPct}% of CMR target · Moisture Cut Qty (Col Z), FCI Miller Consignment files · Stacked & accepted`,
        c:'c-green', tab:null},
 
       {l:'⏳ Raw CMR Pending (BL)',
