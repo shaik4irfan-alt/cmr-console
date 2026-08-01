@@ -1527,6 +1527,40 @@ function classifyOpmsDept(tag){
   return 'OTHER';
 }
 
+// Classifies each Dy Allocation Mill Wise mill code's real delivery status
+// against actual Miller Consignment Status records — these are two
+// genuinely different situations that "Never Delivered" was previously
+// blurring together (or, in CMR Allocation's case, not checking at all):
+//   'absent'  — mill code never appears in the uploaded consignment
+//               records at all → truly not delivering.
+//   'rejected'— mill has consignment records, but every single one was
+//               rejected (RQ/AR) → attempted, distinct from never trying.
+//   'dumped'  — at least one non-rejected record has reached the godown
+//               (a valid Dumping Date present).
+//   'pending' — has records, none rejected, but none dumped yet either
+//               (e.g. still in transit) — neither "never" nor "delivered".
+function classifyOpmsMillStatus(opmsRows, millCodes){
+  const byCode = {};
+  opmsRows.forEach(r=>{
+    const code=String(r[1]||'').trim(); if(!code) return;
+    if(!byCode[code]) byCode[code]={hasDump:false,allRejected:true};
+    const hasDumpDate = r[14]&&/\d{2}-\d{2}-\d{4}/.test(r[14]);
+    if(hasDumpDate) byCode[code].hasDump=true;
+    const rejected = r[28]==='RQ'||r[28]==='AR';
+    if(!rejected) byCode[code].allRejected=false;
+  });
+  const result={};
+  (millCodes||[]).forEach(codeRaw=>{
+    const code=String(codeRaw||'').trim();
+    const s=byCode[code];
+    if(!s) result[codeRaw]='absent';
+    else if(s.allRejected) result[codeRaw]='rejected';
+    else if(s.hasDump) result[codeRaw]='dumped';
+    else result[codeRaw]='pending';
+  });
+  return result;
+}
+
 // ── PARSE DISTRICT-WISE ALLOCATION FILE ──────────────────────
 function parseDW(raw){
   let hRow=1;
@@ -2466,8 +2500,6 @@ function renderAllocState(mills, nat, noDsoList){
   const mmRawCount    = mmMills.filter(m=>String(m.t||'').toLowerCase().includes('raw')).length;
   const mmIGCount     = mmIG.length; // IG = Intermediate Godowns (code starts with IG)
 
-  const mmHasCmrDelivery = mmMills.some(m=>m.has_cmr_del);
-
   // From ALLOC_DATA — sourced from mill-wise columns:
   // BJ[61]=Total DSO Rice Alloc = AV + BD
   //   AV[47] = AT×68%  + AU×60.13%  (Boiled: 16%broken + 5%broken paddy → CMR rice)
@@ -2532,14 +2564,32 @@ function renderAllocState(mills, nat, noDsoList){
   const bDumpPct = bDSO ? Math.round(bDump/bDSO*100) : 0;
   const rDumpPct = rDSO ? Math.round(rDump/rDSO*100) : 0;
 
-  const zeroB  = b.filter(m=>m.flag==='Zero Delivery').length;
-  const mmBoiledNeverDelivered = mmHasCmrDelivery
-    ? mmMills.filter(m=>String(m.t||'').toLowerCase().includes('boiled') && (Number(m.boiled_del)||0)<=0).length
-    : zeroB;
   const missB = b.filter(m=>m.flag==='Will Miss Target').length;
   const lowB  = b.filter(m=>m.flag==='Low Delivery').length;
-  const zeroR = r.filter(m=>m.flag==='Zero Delivery').length;
   const missR = r.filter(m=>m.flag==='Will Miss Target').length;
+
+  // "Never Delivered" — cross-referenced against actual Miller Consignment
+  // Status records (not the Mill-Wise file's own self-reported AZ/BH
+  // delivered columns, which could be stale and never distinguished these
+  // two genuinely different cases):
+  //   'absent'   — mill isn't in the uploaded consignment records at all.
+  //   'rejected' — mill has records, but every one was rejected.
+  // Both count toward "Never Delivered" overall, but are broken out
+  // separately in the subtitle so the two cases stay distinguishable.
+  // Scoped the same as Target/Accepted above: Boiled = FCI-only records,
+  // Raw = all departments (FCI+CSC-Central+CSC-State).
+  const boiledMillCodes = mmMills.filter(m=>String(m.t||'').toLowerCase().includes('boiled')).map(m=>m.c);
+  const rawMillCodes    = mmMills.filter(m=>String(m.t||'').toLowerCase().includes('raw')).map(m=>m.c);
+  const opmsFciBoiledRows = opmsFciOnly.filter(row=>row[4]&&row[4].includes('PB'));
+  const opmsRawRowsAllDept = opmsDistFiltered.filter(row=>row[4]&&row[4].includes('Raw'));
+  const opmsStatusB = classifyOpmsMillStatus(opmsFciBoiledRows, boiledMillCodes);
+  const opmsStatusR = classifyOpmsMillStatus(opmsRawRowsAllDept, rawMillCodes);
+  const bAbsentCount   = boiledMillCodes.filter(c=>opmsStatusB[c]==='absent').length;
+  const bRejectedCount = boiledMillCodes.filter(c=>opmsStatusB[c]==='rejected').length;
+  const rAbsentCount   = rawMillCodes.filter(c=>opmsStatusR[c]==='absent').length;
+  const rRejectedCount = rawMillCodes.filter(c=>opmsStatusR[c]==='rejected').length;
+  const mmBoiledNeverDelivered = bAbsentCount + bRejectedCount;
+  const zeroR = rAbsentCount + rRejectedCount;
 
   // Boiled KPI subtitle — AT paddy (16%broken @68%) + AU paddy (5%broken @60.13%) → AV rice target
   const bPaddyTotal = bPaddyAT + bPaddyAU;
@@ -2588,7 +2638,7 @@ function renderAllocState(mills, nat, noDsoList){
 
       {l:'🔴 Boiled Never Delivered',
        v:mmBoiledNeverDelivered,
-       s:'Boiled mills · BK = 0 · No CMR delivered yet',
+       s:`${bAbsentCount} not in Miller Consignment records at all · ${bRejectedCount} present but 100% rejected`,
        c:'c-red', tab:'Zero Delivery'},
 
       {l:'🚨 Boiled Will Miss Target',
@@ -2633,7 +2683,7 @@ function renderAllocState(mills, nat, noDsoList){
 
       {l:'🔴 Raw Never Delivered',
        v:zeroR,
-       s:'Raw mills · BK = 0 · No CMR delivered yet',
+       s:`${rAbsentCount} not in Miller Consignment records at all · ${rRejectedCount} present but 100% rejected`,
        c:'c-red', tab:'Zero Delivery'},
 
       {l:'🚨 Raw Will Miss Target',
