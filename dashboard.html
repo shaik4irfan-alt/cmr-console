@@ -2614,7 +2614,7 @@ function renderAllocState(mills, nat, noDsoList){
   // Numbers may legitimately differ from the cards above; not meant to be reconciled here.
   const opmsRowsAll = window.OPMS_UPLOADED || OPMS_PRE;
   const opmsRows = distF ? opmsRowsAll.filter(r=>r[0]===distF) : opmsRowsAll;
-  const opmsNetQty = r => (r[22]>0 ? r[22] : (r[7]>0 ? r[7] : 0)); // Net Rice Qty (W), fallback dispatch Qty (H)
+  const opmsNetQty = r => (r[25]>0 ? r[25] : (r[22]>0 ? r[22] : (r[7]>0 ? r[7] : 0))); // Moisture Cut Qty (Z) — same fix as Miller Performance's getMCQty; was reading Net Rice Qty (W), before the moisture deduction
   let opmsFciQty=0, opmsCscCQty=0, opmsCscSQty=0, opmsCscOtherQty=0;
   let opmsFciCnt=0, opmsCscCCnt=0, opmsCscSCnt=0, opmsCscOtherCnt=0;
   opmsRows.forEach(r=>{
@@ -2647,12 +2647,12 @@ function renderAllocState(mills, nat, noDsoList){
   kpis.push(
     {l:'🚚 FCI Deliveries (Consignment Records)',
      v:fmtQ(opmsFciQty),
-     s:`${opmsFciCnt.toLocaleString()} consignments · OPMS Net Rice Qty · Dept tag = FCI`,
+     s:`${opmsFciCnt.toLocaleString()} consignments · OPMS Moisture Cut Qty (Col Z) · Dept tag = FCI`,
      c:'c-blue', tab:null},
 
     {l:'📦 Total CSC Deliveries (Consignment Records)',
      v:fmtQ(opmsCscTotalQty),
-     s:`${opmsCscTotalCnt.toLocaleString()} consignments · OPMS Net Rice Qty · CSC-Central + CSC-State`,
+     s:`${opmsCscTotalCnt.toLocaleString()} consignments · OPMS Moisture Cut Qty (Col Z) · CSC-Central + CSC-State`,
      c:'c-teal', action:'showOpmsCscBreakdown'},
   );
 
@@ -2743,7 +2743,7 @@ function showOpmsCscBreakdown(){
   let html = `<div style="margin-bottom:12px"><a onclick="renderAllocActive()" style="cursor:pointer;color:var(--accent);font-size:12px;font-weight:600">← Back to Overview</a></div>
   <div class="sec"><div class="sec-title">CSC Deliveries — Breakdown (Consignment Records)</div><div class="sec-cnt">${bd.distF||'All Districts'}</div></div>
   <div class="kpi-grid">`;
-  html += rows.map(r=>`<div class="kpi" style="border-left:3px solid ${r.c}"><div class="kpi-lbl">${r.l}</div><div class="kpi-val" style="font-size:20px">${fmtQ(r.q)}</div><div class="kpi-sub">${r.n.toLocaleString()} consignments · OPMS Net Rice Qty</div></div>`).join('');
+  html += rows.map(r=>`<div class="kpi" style="border-left:3px solid ${r.c}"><div class="kpi-lbl">${r.l}</div><div class="kpi-val" style="font-size:20px">${fmtQ(r.q)}</div><div class="kpi-sub">${r.n.toLocaleString()} consignments · OPMS Moisture Cut Qty (Col Z)</div></div>`).join('');
   html += `<div class="kpi c-teal"><div class="kpi-lbl">Total CSC</div><div class="kpi-val" style="font-size:20px">${fmtQ(totalQty)}</div><div class="kpi-sub">${totalCnt.toLocaleString()} consignments</div></div>`;
   html += '</div>';
   document.getElementById('alloc-content').innerHTML = html;
@@ -3626,7 +3626,7 @@ function renderOPMSOverview(mills,total,cap,capMT,capRange,delivered,notDel,zero
 
     {l:'🚛 Till Date Total',
      v:fmtQ(totalQty),
-     s:'All consignments · Net Rice Qty · Since start of season',
+     s:'All consignments · Moisture Cut Qty (Col Z) · Since start of season',
      c:'c-blue',tab:null},
 
     {l:'📉 Total Shortage',
