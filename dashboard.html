@@ -576,6 +576,13 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
   </div>
 
+  <!-- Diagnostic receipt: exactly how much Miller Consignment data is
+       currently loaded, and how it splits by department — so a mismatch
+       between "how many files I uploaded" and "what's actually feeding
+       these KPIs" is visible directly on this page, not just at upload
+       time or by inference from percentages. -->
+  <div id="opms-diag-line" style="font-size:11px;color:var(--dim);margin-bottom:10px;font-family:'JetBrains Mono',monospace"></div>
+
   <!-- Sub-tabs -->
   <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;flex-wrap:wrap">
     <div class="al-stab active" id="altab-state" data-dbg="subtab-alloc-state" data-line="586" data-sec="Allocation — State Overview Tab"   onclick="showAlTab('state')"   style="padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent);margin-bottom:-2px">📊 State Overview</div>
@@ -2330,7 +2337,19 @@ function showAlTab(tab){
   renderAllocActive();
 }
 
+function renderAllocDiagLine(){
+  const el = document.getElementById('opms-diag-line');
+  if(!el) return;
+  const opmsData = window.OPMS_UPLOADED || OPMS_PRE;
+  const counts = {};
+  opmsData.forEach(r => { const d = classifyOpmsDept(r[30]); counts[d] = (counts[d]||0) + 1; });
+  const deptSummary = Object.entries(counts).map(([k,v]) => k + ': ' + v.toLocaleString()).join(' · ') || 'none';
+  const filenames = localStorage.getItem('cmr_opms_name') || '(none uploaded this session)';
+  el.textContent = `📋 Miller Consignment data loaded: ${opmsData.length.toLocaleString()} total rows — ${deptSummary} · Source file(s): ${filenames}`;
+}
+
 function renderAllocActive(){
+  renderAllocDiagLine();
   if(!MM || !window.DW_UPLOADED){
     document.getElementById('alloc-content').innerHTML = `<div class="empty" style="margin-top:40px">
       ⬆️ Upload both <b>Dy Allocation Mill Wise</b> and <b>Dy Allocation District Wise</b> files (Upload screen → 🔄 Upload New/Updated Files) to see CMR Allocation data. This page shows no cached or embedded data.
