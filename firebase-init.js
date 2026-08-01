@@ -33,6 +33,21 @@ export async function hashInput(user, pass) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Mirrors dashboard.html's classifyOpmsDept() exactly — kept here too so
+// pages that don't load the full dashboard (e.g. compare.js) can classify
+// Miller Consignment rows by department the same way.
+export function classifyOpmsDept(tag) {
+  const t = String(tag || '').toUpperCase();
+  if (!t) return 'UNKNOWN';
+  if (t === 'FCI') return 'FCI';
+  if (t.includes('CSC')) {
+    if (t.includes('CENTRAL') || /(^|[-_])C$/.test(t)) return 'CSC-Central';
+    if (t.includes('STATE') || /(^|[-_])S$/.test(t)) return 'CSC-State';
+    return 'CSC-Other';
+  }
+  return 'OTHER';
+}
+
 // ============================================================
 // Chunked read/write for large parsed datasets.
 // Firestore documents cap out at ~1MB, and row counts vary

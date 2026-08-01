@@ -404,8 +404,32 @@ document.addEventListener('DOMContentLoaded', function(){
   </div>
   <div class="hdr-tags" id="hdr-tags" data-dbg="header-tags" data-line="368" data-sec="Header"></div>
   <div class="hdr-right">
+    <button class="hdr-btn" id="btn-compare-seasons" style="display:none" onclick="location.href='compare.html'">📊 Compare Seasons</button>
+    <button class="hdr-btn" onclick="openNewSeasonModal()">+ New Season</button>
     <button class="hdr-btn" onclick="reloadFiles()" data-dbg="btn-load-files" data-line="370" data-sec="Header">🔄 Update Files</button>
     <button onclick="doLogout()" data-dbg="btn-logout" data-line="371" data-sec="Header" style="background:#dc2626;color:#fff;border:2px solid #991b1b;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:2px 2px 0 #991b1b;transition:all .15s;letter-spacing:0.3px" onmouseover="this.style.transform='translate(-1px,-1px)';this.style.boxShadow='3px 3px 0 #991b1b'" onmouseout="this.style.transform='';this.style.boxShadow='2px 2px 0 #991b1b'">⏻ Logout</button>
+  </div>
+</div>
+
+<!-- New Season modal — lets you start another season without logging out -->
+<div id="new-season-modal-bg" style="position:fixed;inset:0;background:rgba(26,26,46,.6);z-index:9000;display:none;align-items:center;justify-content:center" onclick="if(event.target===this)closeNewSeasonModal()">
+  <div style="background:var(--surface);border:var(--border-w) solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:24px;width:min(92vw,420px)">
+    <div class="hdr-title" style="margin-bottom:14px">New Season</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div class="kpi-lbl">Season Name</div>
+        <input id="ns2-name" class="srch" style="width:100%" placeholder="e.g. Kharif 2026-27">
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><div class="kpi-lbl">Start Date</div><input id="ns2-start" type="date" class="srch" style="width:100%"></div>
+        <div style="flex:1"><div class="kpi-lbl">End Date</div><input id="ns2-end" type="date" class="srch" style="width:100%"></div>
+      </div>
+      <div id="ns2-err" style="font-size:12px;color:var(--red)"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+        <button class="hdr-btn" onclick="closeNewSeasonModal()">Cancel</button>
+        <button class="go-btn" style="padding:8px 20px;font-size:13px" onclick="createSeasonFromDashboard()">Create & Upload Data</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -6044,7 +6068,7 @@ document.addEventListener('keydown', e => {
 ============================================================ -->
 <script type="module">
   import {
-    db, doc, getDoc, setDoc, serverTimestamp,
+    db, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query, orderBy,
     writeChunkedDoc, readChunkedDoc, reconcileMillRegistry, reconcileGodownRegistry
   } from './firebase-init.js';
 
@@ -6057,6 +6081,40 @@ document.addEventListener('keydown', e => {
   } else {
     initSeason();
   }
+
+  // "+ New Season" reachable from inside a season's dashboard, so starting
+  // another season (or switching between them) no longer requires logging
+  // out. Mirrors season-home.js's createSeason(), duplicated here rather
+  // than imported since season-home.js isn't a module other pages import
+  // from — kept intentionally small.
+  window.openNewSeasonModal = function () { document.getElementById('new-season-modal-bg').style.display = 'flex'; };
+  window.closeNewSeasonModal = function () {
+    document.getElementById('new-season-modal-bg').style.display = 'none';
+    document.getElementById('ns2-err').textContent = '';
+  };
+  window.createSeasonFromDashboard = async function () {
+    const name = document.getElementById('ns2-name').value.trim();
+    const start = document.getElementById('ns2-start').value;
+    const end = document.getElementById('ns2-end').value;
+    const err = document.getElementById('ns2-err');
+    if (!name) { err.textContent = 'Season name is required.'; return; }
+    const id = (name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'season') + '-' + Date.now().toString(36);
+    await setDoc(doc(db, 'seasons', id), {
+      name, startDate: start || null, endDate: end || null,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      kpi: { stacksTotal: 0, deliveredPct: 0, millsCount: 0 }
+    });
+    window.location.href = 'dashboard.html?season=' + encodeURIComponent(id);
+  };
+
+  // "📊 Compare Seasons" only makes sense once there's something to
+  // compare — show it only when 2+ seasons exist.
+  (async function checkSeasonCountForCompareButton(){
+    try {
+      const snap = await getDocs(query(collection(db, 'seasons'), orderBy('createdAt', 'desc')));
+      if (snap.size >= 2) document.getElementById('btn-compare-seasons').style.display = '';
+    } catch (e) { console.warn('season count check failed', e); }
+  })();
 
   async function initSeason() {
     // Season badge + breadcrumb
