@@ -800,31 +800,51 @@ let WL  = null;   // parsed waiting list
 
 // ── AUTO-RESTORE from sessionStorage (survives login, not page close) ──
 function restoreFromStorage(){
-  try{
-    const tecStr  = sessionStorage.getItem('cmr_tec');
-    const wlStr   = sessionStorage.getItem('cmr_wl');
-    const mmStr   = sessionStorage.getItem('cmr_mm');
-    const dwStr   = sessionStorage.getItem('cmr_dw');
-    const opmsStr = sessionStorage.getItem('cmr_opms');
-    if(tecStr)  { TEC = JSON.parse(tecStr); }
-    if(wlStr)   { WL  = JSON.parse(wlStr);  }
-    if(mmStr)   { MM = JSON.parse(mmStr); window.MM_UPLOADED = MM; }
-    if(dwStr)   { window.DW_UPLOADED = JSON.parse(dwStr); }
-    if(opmsStr) { window.OPMS_UPLOADED = JSON.parse(opmsStr); }
-    // Populate hidden script tags so saveToHTML() can bake them in after refresh
-    const ids = {tec:tecStr, wl:wlStr, mm:mmStr, dw:dwStr, opms:opmsStr};
-    for(const [id, str] of Object.entries(ids)){
-      if(!str) continue;
-      let tag = document.getElementById('__upload_'+id);
-      if(!tag){
-        tag = document.createElement('script');
-        tag.type = 'application/json';
-        tag.id = '__upload_'+id;
-        document.body.appendChild(tag);
-      }
-      tag.textContent = str;
+  // Each field is parsed independently — a single corrupted/truncated
+  // sessionStorage entry (e.g. from a sessionStorage quota limit being hit
+  // during a large save) must not silently abort loading the OTHER fields.
+  // Previously this was one big try/catch: if any single JSON.parse threw,
+  // everything after it in the function was skipped too. Also fixes a real
+  // window.TEC / bare-TEC divergence — code elsewhere (the season-loading
+  // glue) checks window.TEC, but this function only ever set the bare TEC
+  // variable, so window.TEC could stay stale/null even after TEC itself
+  // was correctly restored, which could make launchDashboard() wrongly
+  // report "TEC is not available" in some load orderings.
+  function safeParse(key, label){
+    const str = sessionStorage.getItem(key);
+    if(!str) return {str:null, val:undefined};
+    try { return {str, val: JSON.parse(str)}; }
+    catch(e){
+      console.error('restoreFromStorage: corrupted/unparseable '+label+' data in sessionStorage ('+key+') — removing it so it does not silently block reloads.', e);
+      sessionStorage.removeItem(key);
+      return {str:null, val:undefined};
     }
-  } catch(e){ console.warn('Restore failed',e); }
+  }
+  const tec  = safeParse('cmr_tec', 'TEC');
+  const wl   = safeParse('cmr_wl', 'Waiting List');
+  const mm   = safeParse('cmr_mm', 'Dy Allocation Mill Wise');
+  const dw   = safeParse('cmr_dw', 'Dy Allocation District Wise');
+  const opms = safeParse('cmr_opms', 'Miller Consignment Status');
+
+  if(tec.val  !== undefined){ TEC = tec.val; window.TEC = TEC; }
+  if(wl.val   !== undefined){ WL  = wl.val;  window.WL  = WL;  }
+  if(mm.val   !== undefined){ MM  = mm.val;  window.MM  = MM; window.MM_UPLOADED = MM; }
+  if(dw.val   !== undefined){ window.DW_UPLOADED = dw.val; }
+  if(opms.val !== undefined){ window.OPMS_UPLOADED = opms.val; }
+
+  // Populate hidden script tags so saveToHTML() can bake them in after refresh
+  const ids = {tec:tec.str, wl:wl.str, mm:mm.str, dw:dw.str, opms:opms.str};
+  for(const [id, str] of Object.entries(ids)){
+    if(!str) continue;
+    let tag = document.getElementById('__upload_'+id);
+    if(!tag){
+      tag = document.createElement('script');
+      tag.type = 'application/json';
+      tag.id = '__upload_'+id;
+      document.body.appendChild(tag);
+    }
+    tag.textContent = str;
+  }
 }
 
 function saveToStorage(id, data, filename){
@@ -1734,6 +1754,10 @@ function buildWLSummary(records) {
 // ============================================================
 function launchDashboard() {
   // No embedded data anymore — TEC must come from an uploaded file.
+  // Falls back to window.TEC in case the bare TEC variable and window.TEC
+  // ever diverge (restoreFromStorage keeps both in sync now, but this is
+  // a cheap extra safety net against that exact class of bug).
+  if(!TEC && window.TEC) TEC = window.TEC;
   if(!TEC){
     alert('Please upload a TEC CMR data file first (use "Upload New / Updated Files" below), then click Open Dashboard.');
     return;
