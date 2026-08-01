@@ -11,7 +11,7 @@
 :root{
   --bg:#F0F4FF;--surface:#FFFFFF;--surface2:#EEF2FF;--border:#1A1A2E;
   --text:#1A1A2E;--muted:#4A5080;--dim:#8890B0;
-  --orange:#FF6B35;--amber:#FFD23F;--green:#2ED573;--green2:#1CB860;
+  --orange:#FF6B35;--amber:#FFD23F;--amber-text:#B8860B;--green:#2ED573;--green2:#1CB860;
   --blue:#3D7FFF;--red:#FF4757;--accent:#7C5CBF;--purple:#9B59B6;--teal:#00C9A7;
   --shadow-sm:3px 3px 0 #1A1A2E;--shadow-md:4px 4px 0 #1A1A2E;--shadow-lg:5px 5px 0 #1A1A2E;
   --radius:10px;--border-w:2px;
@@ -2286,7 +2286,7 @@ function renderMMTable(data, headers, rowFn){
         const statusText=`${icon} ${cat}${allRun>0&&cat!=='Running'?' (+'+allRun+' running)':''}${allNd>0&&cat!=='Not Delivered'?' (+'+allNd+' pending)':''}`;
         const lotsText=`${latest.Del_Done}/${latest.Del_Total}`;
         const durText=latest.Duration_Days+'d';
-        const delayCol=latest.Duration_Days<=7?'var(--green)':latest.Duration_Days<=14?'var(--amber)':latest.Duration_Days<=21?'var(--orange)':'var(--red)';
+        const delayCol=latest.Duration_Days<=7?'var(--green)':latest.Duration_Days<=14?'var(--amber-text)':latest.Duration_Days<=21?'var(--orange)':'var(--red)';
         const totalStacks=stacks.length;
         const runCount=stacks.filter(s=>s.Stack_Category==='Running').length;
         const ndCount=stacks.filter(s=>s.Stack_Category==='Not Delivered').length;
@@ -2470,7 +2470,7 @@ function renderAllocActive(){
 function flagColor(f){
   if(f==='Zero Delivery')    return 'var(--red)';
   if(f==='Will Miss Target') return 'var(--orange)';
-  if(f==='Low Delivery')     return 'var(--amber)';
+  if(f==='Low Delivery')     return 'var(--amber-text)';
   if(f==='On Track')         return '#16a34a';
   return 'var(--blue)';
 }
@@ -2501,7 +2501,7 @@ function fmtQtable(v){
 }
 function pBar(pct,col){
   const p=Math.min(pct,100);
-  const c=p===0?'var(--red)':p<25?'var(--orange)':p<75?'var(--amber)':'#16a34a';
+  const c=p===0?'var(--red)':p<25?'var(--orange)':p<75?'var(--amber-text)':'#16a34a';
   return `<div style="display:flex;align-items:center;gap:6px">
     <div style="width:80px;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden">
       <div style="width:${p}%;height:100%;background:${c};border-radius:4px"></div>
@@ -2838,7 +2838,7 @@ function renderAllocState(mills, nat, noDsoList, unallocPaddyList){
   html += `<div class="sec"><div class="sec-title">District Performance — Delivery %</div><div class="sec-cnt">${dists.length} districts</div></div>
   <div class="bar-wrap"><div class="bar-chart">`;
   dists.forEach(d=>{
-    const col=d.pct===0?'var(--red)':d.pct<25?'var(--orange)':d.pct<75?'var(--amber)':'#16a34a';
+    const col=d.pct===0?'var(--red)':d.pct<25?'var(--orange)':d.pct<75?'var(--amber-text)':'#16a34a';
     html+=`<div class="bar-row">
       <div class="bar-lbl" onclick="filterAllocDist('${d.d}')" style="cursor:pointer" title="Click to filter">${d.d}</div>
       <div style="position:relative;flex:1;height:20px;background:var(--surface2);border-radius:4px;overflow:hidden">
@@ -2867,7 +2867,7 @@ function showOpmsCscBreakdown(){
   const rows = [
     {l:'CSC-Central', q:bd.opmsCscCQty, n:bd.opmsCscCCnt, c:'var(--blue)'},
     {l:'CSC-State',    q:bd.opmsCscSQty, n:bd.opmsCscSCnt, c:'var(--teal)'},
-    {l:'CSC-Other (unrecognized token — pending confirmation)', q:bd.opmsCscOtherQty, n:bd.opmsCscOtherCnt, c:'var(--amber)'},
+    {l:'CSC-Other (unrecognized token — pending confirmation)', q:bd.opmsCscOtherQty, n:bd.opmsCscOtherCnt, c:'var(--amber-text)'},
   ];
   const totalQty = rows.reduce((s,r)=>s+r.q,0);
   const totalCnt = rows.reduce((s,r)=>s+r.n,0);
@@ -3000,11 +3000,11 @@ function renderAllocDistrict(mills, nat){
       <td class="mono">${fmtQtable(d.dso)}</td>
       <td class="mono" style="color:var(--green)">${fmtQtable(d.del)}</td>
       <td class="mono" style="color:var(--teal)">${fmtQtable(d.dumped)}</td>
-      <td class="mono" style="color:var(--amber)">${fmtQtable(d.pend)}</td>
+      <td class="mono" style="color:var(--amber-text)">${fmtQtable(d.pend)}</td>
       <td>${pBar(d.pct)}</td>
       <td style="color:var(--red);font-weight:600">${d.zero||'—'}</td>
       <td style="color:var(--orange);font-weight:600">${d.miss||'—'}</td>
-      <td style="color:var(--amber)">${d.low||'—'}</td>
+      <td style="color:var(--amber-text)">${d.low||'—'}</td>
     </tr>`;
   });
   tbl += '</tbody></table></div></div>';
@@ -3108,7 +3108,7 @@ function renderAllocMillPage(){
         <td class="mono">${fmtQtable(m.dso)}</td>
         <td class="mono" style="color:var(--teal)">${fmtQtable(m.dumped)}</td>
         <td class="mono" style="color:var(--green)">${fmtQtable(m.del)}</td>
-        <td class="mono" style="color:var(--amber)">${fmtQtable(m.pend)}</td>
+        <td class="mono" style="color:var(--amber-text)">${fmtQtable(m.pend)}</td>
         <td>${pBar(m.del_pct)}</td>
         <td><span class="mono" style="color:${dCol};font-weight:600">${m.days_need>0?m.days_need+'d':'—'}</span></td>
         <td>${flagBadge(m.flag)}</td>
@@ -3233,7 +3233,7 @@ function renderAllocAlerts(mills, noDsoList, unallocPaddyList){
     ['#','District','CSC Code','Mill Name','Type','Pending CMR (Qtl)','CMR/Day (Qtl)','Days Needed','Days Remaining'],
     (m,i)=>`<td class="mono" style="color:var(--dim)">${i+1}</td><td style="font-size:12px">${m.dist}</td><td class="mono" style="color:var(--accent);font-weight:600">${m.code}</td><td style="font-size:12px">${m.name}</td>
       <td><span style="color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
-      <td class="mono" style="color:var(--amber)">${fmtQtable(m.pend)}</td>
+      <td class="mono" style="color:var(--amber-text)">${fmtQtable(m.pend)}</td>
       <td class="mono">${m.cpd.toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
       <td class="mono" style="color:var(--red);font-weight:600">${m.days_need}d</td>
       <td class="mono" style="color:var(--green)">${allocDaysRem}d</td>`,
@@ -3342,7 +3342,7 @@ function renderAllocAlerts(mills, noDsoList, unallocPaddyList){
         <td><span class="badge2" style="background:${m.nat==='B'?'rgba(20,184,166,.15)':'rgba(99,102,241,.15)'};color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
         <td class="mono" style="color:var(--blue)">${fmtQtable(m.avail)}</td>
         <td class="mono" style="color:var(--green2)">${fmtQtable(m.allocatedPaddy)}</td>
-        <td class="mono" style="color:var(--amber);font-weight:700">${fmtQtable(m.unallocated)}</td>
+        <td class="mono" style="color:var(--amber-text);font-weight:700">${fmtQtable(m.unallocated)}</td>
       </tr>`).join('')}</tbody>
     </table></div></div>`;
   })()}
@@ -3362,7 +3362,7 @@ function renderAllocAlerts(mills, noDsoList, unallocPaddyList){
       <td><span class="badge2" style="background:${m.nat==='B'?'rgba(20,184,166,.15)':'rgba(99,102,241,.15)'};color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
       <td class="mono" style="color:var(--blue)">${fmtQtable(m.avail)}</td>
       <td class="mono" style="color:var(--green2)">${fmtQtable(m.paddy_used)}<br><span style="font-size:10px;color:var(--dim)">(CMR ${fmtQtable(m.cmr_del_qtl)} ÷ ${m.nat==='B'?'68%':'67%'})</span></td>
-      <td class="mono" style="color:var(--amber);font-weight:700">${fmtQtable(m.bal_paddy)}</td>
+      <td class="mono" style="color:var(--amber-text);font-weight:700">${fmtQtable(m.bal_paddy)}</td>
     </tr>`).join('')}</tbody>
   </table></div></div>`;
 
@@ -4186,7 +4186,7 @@ function renderOPMSMillPage(label){
         m.range_qty>0?'<span class="badge2 b-gn">✅ Del.</span>':
         '<span class="badge2 b-or">⚠️ Nil</span>';
       const achieve=m.alloc_target>0?Math.round(m.total_qty/m.alloc_target*100):0;
-      const achCol=achieve>=75?'var(--green2)':achieve>=50?'var(--amber)':'var(--orange)';
+      const achCol=achieve>=75?'var(--green2)':achieve>=50?'var(--amber-text)':'var(--orange)';
       const avgTransit=m.transit_count>0?(m.transit_days_sum/m.transit_count).toFixed(1)+'d':'—';
       const inTrCol=m.in_transit>0?'var(--blue)':'var(--dim)';
       const rejCol=m.rejected>0?'var(--red)':'var(--dim)';
@@ -4685,7 +4685,7 @@ const FCI_COLS = [
   {key:'brb',      label:'BRB',             desc:'Booked for Receipt',          col:8,  color:'var(--purple)'},
   {key:'mvc',      label:'MVC',             desc:'Moved/Vacant Covered',        col:9,  color:'var(--dim)'},
   {key:'reserved', label:'Reserved',        desc:'Reserved by Booking',         col:10, color:'var(--orange)'},
-  {key:'receipt',  label:'Under Receipt',   desc:'Actively receiving grain',    col:11, color:'var(--amber)'},
+  {key:'receipt',  label:'Under Receipt',   desc:'Actively receiving grain',    col:11, color:'var(--amber-text)'},
   {key:'full',     label:'Full',            desc:'Completely filled stacks',    col:12, color:'var(--red)'},
   {key:'issue',    label:'Under Issue',     desc:'Being dispatched/issued',     col:13, color:'#10b981'},
   {key:'total',    label:'Total Stacks',    desc:'All stacks',                  col:17, color:'var(--text)'},
@@ -4931,7 +4931,7 @@ function renderFCIInlinePanel(){
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         ${[
           {l:'Vacant Space',v:t.avail,c:'var(--green2)'},
-          {l:'Under Receipt',v:t.receipt,c:'var(--amber)'},
+          {l:'Under Receipt',v:t.receipt,c:'var(--amber-text)'},
           {l:'Full',v:t.full,c:'var(--red)'},
           {l:'Under Issue',v:t.issue,c:'var(--teal)'},
           {l:'Total Stacks',v:t.total,c:'#fff'},
@@ -4987,7 +4987,7 @@ function renderFCIInlinePanel(){
       </td>
       <td style="padding:8px 10px;text-align:right;font-size:11px;color:var(--muted)">${dep.railHead||'—'}</td>
       <td style="padding:8px 6px;text-align:right;${dep.avail>0?'color:var(--green2);font-weight:700':'color:var(--dim)'}">${dep.avail||'—'}</td>
-      <td style="padding:8px 6px;text-align:right;${dep.receipt>0?'color:var(--amber);font-weight:700':'color:var(--dim)'}">${dep.receipt||'—'}</td>
+      <td style="padding:8px 6px;text-align:right;${dep.receipt>0?'color:var(--amber-text);font-weight:700':'color:var(--dim)'}">${dep.receipt||'—'}</td>
       <td style="padding:8px 6px;text-align:right;${dep.full>0?'color:var(--red);font-weight:700':'color:var(--dim)'}">${dep.full||'—'}</td>
       <td style="padding:8px 6px;text-align:right;${dep.issue>0?'color:var(--teal);font-weight:700':'color:var(--dim)'}">${dep.issue||'—'}</td>
       <td style="padding:8px 6px;text-align:right;font-weight:700">${dep.total.toLocaleString()}</td>
@@ -5001,7 +5001,7 @@ function renderFCIInlinePanel(){
     <td style="padding:8px 12px;color:var(--accent);font-family:'Nunito',sans-serif">Total — ${d.depots.length} depots</td>
     <td></td>
     <td style="padding:8px 6px;text-align:right;color:var(--green2)">${t.avail.toLocaleString()}</td>
-    <td style="padding:8px 6px;text-align:right;color:var(--amber)">${t.receipt||'—'}</td>
+    <td style="padding:8px 6px;text-align:right;color:var(--amber-text)">${t.receipt||'—'}</td>
     <td style="padding:8px 6px;text-align:right;color:var(--red)">${t.full.toLocaleString()}</td>
     <td style="padding:8px 6px;text-align:right;color:var(--teal)">${t.issue||'—'}</td>
     <td style="padding:8px 6px;text-align:right">${t.total.toLocaleString()}</td>
@@ -5247,7 +5247,7 @@ function renderWLDetail(distFilter, depotFilter){
       {l:'Mills Waiting',      v:s.total_mills,                              c:'var(--purple)',  click:'showWLDetail()'},
       {l:'Boiled (unique mills)', v:s.boiled,                                c:'var(--teal)',    click:"showWLDetail(null,null,'Boiled')"},
       {l:'Raw (unique mills)', v:s.raw,                                      c:'var(--accent)',  click:"showWLDetail(null,null,'Raw')"},
-      {l:'Total Lots',         v:s.total_lots.toLocaleString('en-IN'),       c:'var(--amber)',   click:null},
+      {l:'Total Lots',         v:s.total_lots.toLocaleString('en-IN'),       c:'var(--amber-text)',   click:null},
       {l:'Qty (Qtl)',          v:(s.total_qty/1000000).toFixed(2)+' LMT',   c:'var(--orange)',  click:null},
       {l:'Depots Congested',   v:s.total_depots,                             c:'var(--red)',     click:null},
       {l:'Forego Willing',     v:s.forego,                                   c:'var(--green2)',  click:null},
@@ -5490,7 +5490,7 @@ function renderFCIDistrictBars(allDepots){
         ${[
           {l:'Available',v:t.avail,    c:'var(--green2)'},
           {l:'Reserved', v:t.reserved, c:'var(--orange)'},
-          {l:'Receipt',  v:t.receipt,  c:'var(--amber)'},
+          {l:'Receipt',  v:t.receipt,  c:'var(--amber-text)'},
           {l:'Full',     v:t.full,     c:'var(--red)'},
           {l:'Issue',    v:t.issue,    c:'var(--teal)'},
         ].map(s=>`<div style="text-align:center">
@@ -5582,7 +5582,7 @@ function renderFCIModalTable(){
 
   const nc = n => n > 0 ? `style="color:var(--green2);font-weight:700"` : `style="color:var(--dim)"`;
   const rc = n => n > 0 ? `style="color:var(--red);font-weight:700"` : `style="color:var(--dim)"`;
-  const ac = n => n > 0 ? `style="color:var(--amber);font-weight:700"` : `style="color:var(--dim)"`;
+  const ac = n => n > 0 ? `style="color:var(--amber-text);font-weight:700"` : `style="color:var(--dim)"`;
 
   let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead>
@@ -5636,7 +5636,7 @@ function renderFCIModalTable(){
       <td style="padding:7px 10px;color:var(--accent)">Subtotal — ${dist}</td>
       <td></td>
       <td style="padding:7px 6px;text-align:right;color:var(--green2)">${distTotal('avail')||'—'}</td>
-      <td style="padding:7px 6px;text-align:right;color:var(--amber)">${distTotal('receipt')||'—'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--amber-text)">${distTotal('receipt')||'—'}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--red)">${distTotal('full').toLocaleString()}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--teal)">${distTotal('issue')||'—'}</td>
       <td style="padding:7px 6px;text-align:right">${distTotal('total').toLocaleString()}</td>
@@ -5893,13 +5893,13 @@ function rsRenderDistrictTable(){
   }
   rows.forEach((d,i) => {
     const rowBg = i%2===0 ? '' : 'background:#F7F9FF';
-    const pctColor = d.pct < 25 ? 'var(--red)' : d.pct < 50 ? 'var(--amber)' : 'var(--green2)';
+    const pctColor = d.pct < 25 ? 'var(--red)' : d.pct < 50 ? 'var(--amber-text)' : 'var(--green2)';
     html += `<tr style="${rowBg}">
       <td style="padding:8px 10px;text-align:right;color:var(--dim);font-size:11px;font-family:'JetBrains Mono',monospace">${d.sno}</td>
       <td style="padding:8px 10px;font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="rsDrillDistrict('${d.name.replace(/'/g,"\\'")}')" title="Click to view this district's mills">${d.name}</td>
       <td style="padding:8px 10px;text-align:right">${d.stacks.toLocaleString()}</td>
       <td style="padding:8px 10px;text-align:right">${d.millCount.toLocaleString()}</td>
-      <td style="padding:8px 10px"><span style="color:var(--amber);font-weight:700">🍚 ${d.boiledMills}</span> &nbsp;·&nbsp; <span style="color:var(--green2);font-weight:700">🌾 ${d.rawMills}</span></td>
+      <td style="padding:8px 10px"><span style="color:var(--amber-text);font-weight:700">🍚 ${d.boiledMills}</span> &nbsp;·&nbsp; <span style="color:var(--green2);font-weight:700">🌾 ${d.rawMills}</span></td>
       <td style="padding:8px 10px;text-align:right;color:var(--green2)">${d.lotsDone.toLocaleString()}</td>
       <td style="padding:8px 10px;text-align:right">${d.lotsTot.toLocaleString()}</td>
       <td style="padding:8px 10px;text-align:right;font-weight:700;color:${pctColor}">${d.pct}%</td>
@@ -5934,7 +5934,7 @@ function rsRenderMillTable(){
   }
   rows.forEach((m,i) => {
     const rowBg = i%2===0 ? '' : 'background:#F7F9FF';
-    const pctColor = m.pct < 25 ? 'var(--red)' : m.pct < 50 ? 'var(--amber)' : 'var(--green2)';
+    const pctColor = m.pct < 25 ? 'var(--red)' : m.pct < 50 ? 'var(--amber-text)' : 'var(--green2)';
     const statusBadge = m.status==='stalled' ? `<span style="background:var(--red);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">ZERO DELIVERY</span>`
       : `<span style="background:var(--green2);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">ACTIVE</span>`;
     const typeBadge = m.type==='Boiled' ? `<span style="background:var(--amber);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">🍚 BOILED</span>`
