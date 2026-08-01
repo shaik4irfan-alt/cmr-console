@@ -147,6 +147,22 @@ export async function deleteFileType(seasonId, fileType) {
   if (delRefs.length) await deleteChunked(db, delRefs);
 }
 
+// Deletes a season entirely: every chunked-data doc under
+// seasons/{seasonId}/data, then the season doc itself. Does NOT touch
+// millRegistry/godownRegistry — those track a mill/godown across ALL
+// seasons via a `seasons` array field, and this season's id simply
+// becomes a dangling reference in that array, which is harmless (no
+// code reads registry.seasons to look up season documents) rather than
+// worth the extra reads/writes to scrub every registry entry.
+export async function deleteSeason(seasonId) {
+  const dataCol = collection(db, 'seasons', seasonId, 'data');
+  const existing = await getDocs(query(dataCol));
+  const delRefs = [];
+  existing.forEach(d => delRefs.push(d.ref));
+  if (delRefs.length) await deleteChunked(db, delRefs);
+  await deleteDoc(doc(db, 'seasons', seasonId));
+}
+
 // ============================================================
 // Mill / Godown master registry — keeps a physical mill/godown
 // recognized as the same entity across seasons so cross-season

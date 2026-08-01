@@ -317,6 +317,36 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="fc-status" id="status-opms" style="font-size:11px" data-dbg="fc-status-opms" data-line="334" data-sec="File Card — Status Text">Using pre-loaded data</div>
           </div>
 
+          <!-- Consolidated here per request — these 3 uploads used to live
+               scattered on the Mill Mapping and FCI Depot Snapshot pages.
+               Same handler functions, unchanged, just triggered from here. -->
+          <div class="file-card" id="card-fci-override" style="padding:16px">
+            <input type="file" id="file-fci-override-home" accept=".xlsx,.xls" multiple style="display:none" onchange="handleFCIOverride(this.files)">
+            <div class="fc-icon" style="font-size:28px;margin-bottom:6px">📡</div>
+            <div class="fc-title" style="font-size:13px">FCI District Mill Files</div>
+            <div class="fc-desc" style="font-size:11px;margin-bottom:8px">Refreshes CSC↔FCI mill code mapping<br><span style="color:var(--teal)">Optional — used on "CSC Mills Mapped to FCI Mill Code"</span></div>
+            <label class="fc-btn" style="font-size:11px;padding:5px 12px" onclick="document.getElementById('file-fci-override-home').click()">Browse (multi-select ok)</label>
+            <div class="fc-status" id="status-fci-override-home" style="font-size:11px">Not uploaded this session</div>
+          </div>
+
+          <div class="file-card" id="card-fci-depot" style="padding:16px">
+            <input type="file" id="fci-file-input-home" multiple accept=".xls,.xlsx,.html,.htm" style="display:none" onchange="handleFCIUpload(this.files)">
+            <div class="fc-icon" style="font-size:28px;margin-bottom:6px">🏦</div>
+            <div class="fc-title" style="font-size:13px">FCIARMs Depot Snapshot</div>
+            <div class="fc-desc" style="font-size:11px;margin-bottom:8px">One file per FCI district<br><span style="color:var(--teal)">Optional — used on "FCI Depot Snapshot"</span></div>
+            <label class="fc-btn" style="font-size:11px;padding:5px 12px" onclick="document.getElementById('fci-file-input-home').click()">Browse (multi-select ok)</label>
+            <div class="fc-status" id="status-fci-depot-home" style="font-size:11px">Not uploaded this session</div>
+          </div>
+
+          <div class="file-card" id="card-wld" style="padding:16px">
+            <input type="file" id="wld-file-input-home" accept=".xls,.xlsx,.html,.htm" style="display:none" onchange="handleWLDetailUpload(this.files)">
+            <div class="fc-icon" style="font-size:28px;margin-bottom:6px">📋</div>
+            <div class="fc-title" style="font-size:13px">Waiting List Detailed</div>
+            <div class="fc-desc" style="font-size:11px;margin-bottom:8px">Mill-level waiting list detail<br><span style="color:var(--teal)">Optional — used on "FCI Depot Snapshot"</span></div>
+            <label class="fc-btn" style="font-size:11px;padding:5px 12px" onclick="document.getElementById('wld-file-input-home').click()">Browse</label>
+            <div class="fc-status" id="status-wld-home" style="font-size:11px">Not uploaded this session</div>
+          </div>
+
         </div>
 
         <!-- Save to HTML button -->
@@ -357,7 +387,12 @@ document.addEventListener('DOMContentLoaded', function(){
 
 <div class="header" data-dbg="header-bar" data-line="358" data-sec="Header">
   <div class="hdr-left">
+    <!-- "All Seasons" nav button disabled per request (season-card quick
+         stats could go stale relative to a season's real uploaded data).
+         Kept as inert markup rather than deleted, in case it's wanted back.
     <a href="season-home.html" class="hdr-btn" style="text-decoration:none;display:inline-flex;align-items:center">← All Seasons</a>
+    -->
+
     <div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="badge" data-dbg="LIVE-badge" data-line="362" data-sec="Header">LIVE</span>

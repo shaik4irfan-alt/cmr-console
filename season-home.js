@@ -1,4 +1,4 @@
-import { db, collection, doc, getDocs, setDoc, query, orderBy, serverTimestamp } from './firebase-init.js';
+import { db, collection, doc, getDocs, setDoc, query, orderBy, serverTimestamp, deleteSeason } from './firebase-init.js';
 
 if (!sessionStorage.getItem('cmr_user')) window.location.replace('login.html');
 document.getElementById('who').textContent = '👤 ' + sessionStorage.getItem('cmr_user');
@@ -40,7 +40,10 @@ async function loadSeasons() {
     card.className = 'season-card';
     card.onclick = () => window.location.href = 'dashboard.html?season=' + encodeURIComponent(d.id);
     card.innerHTML = `
-      <div class="hdr-title" style="font-size:16px;margin-bottom:4px">${s.name || d.id}</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
+        <div class="hdr-title" style="font-size:16px">${s.name || d.id}</div>
+        <button class="hdr-btn" style="background:#dc2626;color:#fff;font-size:11px;padding:4px 10px;flex-shrink:0" onclick="event.stopPropagation();deleteSeasonPrompt('${d.id}','${(s.name||d.id).replace(/'/g,"\\'")}')" title="Delete this season">🗑</button>
+      </div>
       <div class="hdr-sub" style="margin-bottom:12px">${dateStr}</div>
       <div style="display:flex;gap:14px">
         <div><div class="kpi-val" style="font-size:18px;color:var(--green2)">${kpi.deliveredPct || 0}%</div><div class="kpi-lbl">CMR Delivered</div></div>
@@ -50,4 +53,15 @@ async function loadSeasons() {
     grid.appendChild(card);
   });
 }
+window.deleteSeasonPrompt = async function (seasonId, seasonName) {
+  if (!confirm('Delete season "' + seasonName + '"?\n\nThis permanently removes all uploaded data for this season (TEC, Waiting List, Mill Wise, District Wise, Miller Consignment) — it cannot be undone.')) return;
+  try {
+    await deleteSeason(seasonId);
+    loadSeasons();
+  } catch (e) {
+    console.error('Delete season failed', e);
+    alert('Failed to delete season: ' + e.message);
+  }
+};
+
 loadSeasons();
