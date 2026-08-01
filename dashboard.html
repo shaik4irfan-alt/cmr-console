@@ -2648,9 +2648,9 @@ function renderAllocState(mills, nat, noDsoList, unallocPaddyList){
   const opmsDistFiltered = (window.OPMS_UPLOADED||OPMS_PRE).filter(row => !distF || row[0]===distF);
   const opmsFciOnly = opmsDistFiltered.filter(row => classifyOpmsDept(row[30])==='FCI');
   const bDump = opmsFciOnly.reduce((s,row)=> (row[4]&&row[4].includes('PB'))  ? s+(row[15]||0) : s, 0);
-  const bDel  = opmsFciOnly.reduce((s,row)=> (row[4]&&row[4].includes('PB')  && row[17]) ? s+(row[25]||0) : s, 0);
+  const bDel  = opmsFciOnly.reduce((s,row)=> (row[4]&&row[4].includes('PB')  && row[17]) ? s+(typeof row[25]==='number'?row[25]:0) : s, 0);
   const rDump = opmsDistFiltered.reduce((s,row)=> (row[4]&&row[4].includes('Raw')) ? s+(row[15]||0) : s, 0);
-  const rDel  = opmsDistFiltered.reduce((s,row)=> (row[4]&&row[4].includes('Raw') && row[17]) ? s+(row[25]||0) : s, 0);
+  const rDel  = opmsDistFiltered.reduce((s,row)=> (row[4]&&row[4].includes('Raw') && row[17]) ? s+(typeof row[25]==='number'?row[25]:0) : s, 0);
   // Pending recomputed against the new OPMS-derived Accepted figure so
   // Accepted + Pending stays consistent with the displayed Target.
   const bPend = Math.max(0, bDSO - bDel);       // BL — balance boiled CMR still to deliver
@@ -2844,7 +2844,7 @@ function renderAllocState(mills, nat, noDsoList, unallocPaddyList){
   // Total CMR accepted across both boiled+raw — from MillerConsignmentsStatus column Z
   // (Moisture Cut Qty = final accepted qty after moisture cut), summed over every dept tag,
   // restricted to rows that reached final acceptance (Stacking Date [17] present).
-  const totalCMRAccepted = opmsRows.reduce((s,r)=> r[17] ? s+(r[25]||0) : s, 0);
+  const totalCMRAccepted = opmsRows.reduce((s,r)=> r[17] ? s+(typeof r[25]==='number'?r[25]:0) : s, 0);
 
   // Same "Completed CMR, paddy still on hand" computation used in
   // renderAllocAlerts — kept in sync so the KPI count here matches the
@@ -3562,8 +3562,9 @@ function buildAllocFromUploads(){
     const isBoiled = row[4] && row[4].includes('PB');
     const isRaw    = row[4] && row[4].includes('Raw');
     const isFci    = classifyOpmsDept(row[30])==='FCI';
-    if(isBoiled && isFci) opmsDelByMill[code].boiled += (row[25]||0);
-    if(isRaw)             opmsDelByMill[code].raw    += (row[25]||0);
+    const q25 = typeof row[25]==='number'?row[25]:0; // guards against malformed rows (e.g. a date string misaligned into this column)
+    if(isBoiled && isFci) opmsDelByMill[code].boiled += q25;
+    if(isRaw)             opmsDelByMill[code].raw    += q25;
   });
 
   let sno=0;
@@ -4020,7 +4021,7 @@ function renderOPMSOverview(mills,total,cap,capMT,capRange,delivered,notDel,zero
     return true;
   });
   const totalShortage   = filtData.reduce((s,r)=>s+(r[20]||0),0);  // U col — Shortage
-  const totalMoistCut   = filtData.reduce((s,r)=>s+(r[25]||0),0);  // Z col — Moisture Cut Qty
+  const totalMoistCut   = filtData.reduce((s,r)=>s+(typeof r[25]==='number'?r[25]:0),0);  // Z col — Moisture Cut Qty
   const totalNetRice    = filtData.reduce((s,r)=>s+(r[22]||0),0);  // W col — Net Rice Qty
   const totalDispatched = filtData.reduce((s,r)=>s+(r[7]||0),0);   // H col — Qty dispatched
   const inTransit       = filtData.filter(r=>r[28]==='IT').length;

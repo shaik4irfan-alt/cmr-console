@@ -39,8 +39,9 @@ async function fetchSeasonMillRecords(seasonId) {
     const isBoiled = row[4] && row[4].includes('PB');
     const isRaw = row[4] && row[4].includes('Raw');
     const isFci = classifyOpmsDept(row[30]) === 'FCI';
-    if (isBoiled && isFci) delByMill[code].boiled += (row[25] || 0);
-    if (isRaw) delByMill[code].raw += (row[25] || 0);
+    const q = typeof row[25] === 'number' ? row[25] : 0; // guards against malformed rows (e.g. a date string misaligned into this column)
+    if (isBoiled && isFci) delByMill[code].boiled += q;
+    if (isRaw) delByMill[code].raw += q;
   });
 
   const records = src.map(m => {
