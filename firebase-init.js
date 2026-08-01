@@ -57,7 +57,16 @@ export function classifyOpmsDept(tag) {
 // ============================================================
 const CHUNK_BYTES = 900000;               // UTF-8 bytes per chunk, safely under Firestore's 1MiB per-document limit
 const MAX_BATCH_OPS = 450;                // Firestore hard cap: 500 writes per batch commit
-const MAX_BATCH_BYTES = 8 * 1024 * 1024;  // stay well clear of Firestore's ~10-11MiB per-commit request cap
+// Kept well under both Firestore's ~10-11MiB per-commit request cap AND its
+// per-connection queued-writes limit. Large files (e.g. a 28MB OPMS season)
+// need 30+ chunk docs; bursting them in near-8MB batches back-to-back
+// exhausted the client's write-stream queue (resource-exhausted errors),
+// leaving some chunks unwritten. Smaller batches + a gap between commits
+// (see BATCH_GAP_MS below) let the stream drain instead of overflowing.
+const MAX_BATCH_BYTES = 3 * 1024 * 1024;
+const BATCH_GAP_MS = 400;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder();
@@ -86,20 +95,27 @@ function chunkByUtf8Bytes(str, maxBytes) {
 async function commitChunked(dbRef, writes) {
   let batch = writeBatch(dbRef);
   let opCount = 0, byteCount = 0;
+  let first = true;
   for (const w of writes) {
     if (opCount && (opCount >= MAX_BATCH_OPS || byteCount + w.sizeBytes > MAX_BATCH_BYTES)) {
+      if (!first) await sleep(BATCH_GAP_MS);
       await batch.commit();
+      first = false;
       batch = writeBatch(dbRef);
       opCount = 0; byteCount = 0;
     }
     batch.set(w.ref, w.data);
     opCount++; byteCount += w.sizeBytes;
   }
-  if (opCount) await batch.commit();
+  if (opCount) {
+    if (!first) await sleep(BATCH_GAP_MS);
+    await batch.commit();
+  }
 }
 
 async function deleteChunked(dbRef, refs) {
   for (let i = 0; i < refs.length; i += MAX_BATCH_OPS) {
+    if (i > 0) await sleep(BATCH_GAP_MS);
     const batch = writeBatch(dbRef);
     refs.slice(i, i + MAX_BATCH_OPS).forEach(ref => batch.delete(ref));
     await batch.commit();
