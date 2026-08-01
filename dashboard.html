@@ -1203,6 +1203,8 @@ function handleUpload_mm_inner(raw) {
       // CSC). Read fresh from every upload, never hardcoded.
       csc_c_target:safeFloat(r[12]),   // M — CSC-Central Raw CMR target
       csc_s_target:safeFloat(r[29]),   // AD — CSC-State Raw CMR target
+      csc_c_paddy:safeFloat(r[11]),    // L — CSC-Central DSO Raw Paddy Allocation (paddy, not rice)
+      csc_s_paddy:safeFloat(r[28]),    // AC — CSC-State DSO Raw Paddy Allocation (paddy, not rice)
       // BJ[61] = AV[47] + BD[55] — total across both boiled and raw for this mill
       // Store AV and BD separately so bDSO and rDSO can sum the right column
       av_target:safeFloat(r[47]),   // AV — FCI Boiled CMR rice target (AT×68% + AU×60.13%)
@@ -2446,17 +2448,22 @@ function renderAllocActive(){
 
   if(flag) mills = mills.filter(m=>m.flag===flag);
 
-  // Filter NO_DSO_MILLS by same nat + dist filters
+  // Filter NO_DSO_MILLS / UNALLOC_PADDY_MILLS by same nat + dist filters
   const _dist = document.getElementById('alloc-dist-filter').value;
   let filteredNoDso = NO_DSO_MILLS;
   if(nat==='B') filteredNoDso = filteredNoDso.filter(m=>m.nat==='B');
   else if(nat==='R') filteredNoDso = filteredNoDso.filter(m=>m.nat==='R');
   if(_dist) filteredNoDso = filteredNoDso.filter(m=>m.dist===_dist);
 
-  if(allocActiveTab==='state')    renderAllocState(mills, nat, filteredNoDso);
+  let filteredUnallocPaddy = UNALLOC_PADDY_MILLS;
+  if(nat==='B') filteredUnallocPaddy = filteredUnallocPaddy.filter(m=>m.nat==='B');
+  else if(nat==='R') filteredUnallocPaddy = filteredUnallocPaddy.filter(m=>m.nat==='R');
+  if(_dist) filteredUnallocPaddy = filteredUnallocPaddy.filter(m=>m.dist===_dist);
+
+  if(allocActiveTab==='state')    renderAllocState(mills, nat, filteredNoDso, filteredUnallocPaddy);
   else if(allocActiveTab==='district') renderAllocDistrict(mills, nat);
   else if(allocActiveTab==='mills')    renderAllocMills(mills);
-  else if(allocActiveTab==='alerts')   renderAllocAlerts(mills, filteredNoDso);
+  else if(allocActiveTab==='alerts')   renderAllocAlerts(mills, filteredNoDso, filteredUnallocPaddy);
   else if(allocActiveTab==='recon')    renderAllocRecon();
 }
 
@@ -2504,8 +2511,9 @@ function pBar(pct,col){
 }
 
 // ── STATE OVERVIEW ────────────────────────────────────────────
-function renderAllocState(mills, nat, noDsoList){
+function renderAllocState(mills, nat, noDsoList, unallocPaddyList){
   noDsoList = noDsoList || NO_DSO_MILLS;
+  unallocPaddyList = unallocPaddyList || UNALLOC_PADDY_MILLS;
   const b=mills.filter(m=>m.nat==='B'), r=mills.filter(m=>m.nat==='R');
   const mmSrc = MM || buildMapping(MM_PRE.filter(m=>!m.ig), MM_PRE.filter(m=>m.ig));
   let mmMills = [...(mmSrc.mapped||[]), ...(mmSrc.cscOnly||[])];
@@ -2794,6 +2802,11 @@ function renderAllocState(mills, nat, noDsoList){
      v:fmtQ(totalCMRAccepted),
      s:'Col Z (Moisture Cut Qty) · Stacked & accepted · Miller Consignment Status',
      c:'c-green', tab:null},
+
+    {l:'🌾 Unallocated Paddy Balance',
+     v:unallocPaddyList.length,
+     s:'Avail Paddy (Col K) > 500 Qtl unassigned to any DSO category (AT/AU/BB/BC/CSC-C/CSC-S)',
+     c:'c-amber', action:"goToAlertSection('alert-unallocpaddy')"},
   );
   html += kpis.map(k=>{
     // k.action is normally a bare function name (needs "()" appended), but
@@ -3013,6 +3026,14 @@ function noDsoSortBy(k){
   renderAllocActive();
 }
 
+// ── UNALLOCATED PADDY BALANCE TABLE (Alerts tab) ────────────────
+let unallocPaddySortKey='unallocated', unallocPaddySortDesc=true;
+function unallocPaddySortBy(k){
+  if(unallocPaddySortKey===k) unallocPaddySortDesc=!unallocPaddySortDesc;
+  else {unallocPaddySortKey=k; unallocPaddySortDesc=(k==='dist'||k==='code'||k==='name'||k==='nat')?false:true;}
+  renderAllocActive();
+}
+
 // ── SORTABLE ALERT TABLES (Zero Delivery, Will Miss Target, Low
 // Delivery, High Dumped — Alerts tab) ───────────────────────────
 function alertTableSort(sortId, k){
@@ -3134,8 +3155,9 @@ function allocIGSectionHTML(){
 }
 
 // ── ALERTS ───────────────────────────────────────────────────
-function renderAllocAlerts(mills, noDsoList){
+function renderAllocAlerts(mills, noDsoList, unallocPaddyList){
   noDsoList = noDsoList || NO_DSO_MILLS;
+  unallocPaddyList = unallocPaddyList || UNALLOC_PADDY_MILLS;
   const zero  = mills.filter(m=>m.flag==='Zero Delivery').sort((a,b)=>b.dso-a.dso);
   const miss  = mills.filter(m=>m.flag==='Will Miss Target').sort((a,b)=>b.days_need-a.days_need);
   const low   = mills.filter(m=>m.flag==='Low Delivery').sort((a,b)=>a.del_pct-b.del_pct);
@@ -3285,6 +3307,46 @@ function renderAllocAlerts(mills, noDsoList){
     </table></div></div>`;
   })()}
 
+  <div id="alert-unallocpaddy" class="alert-card warn" style="margin-bottom:12px">
+    <div class="alert-icon">🌾</div>
+    <div><div class="alert-title">Unallocated Paddy Balance — ${unallocPaddyList.length} mills (Boiled: ${unallocPaddyList.filter(m=>m.nat==='B').length}, Raw: ${unallocPaddyList.filter(m=>m.nat==='R').length})</div>
+    <div class="alert-body">Available Paddy (Col K) minus paddy already assigned across all DSO categories (FCI Boiled AT+AU, FCI Raw BB+BC, CSC-Central Col L, CSC-State Col AC) exceeds 500 Qtl — these mills are holding paddy that hasn't been allocated to any category yet.</div></div>
+  </div>
+  ${(()=>{
+    const unallocSorted=[...unallocPaddyList].sort((a,b)=>{
+      const av=a[unallocPaddySortKey]??0, bv=b[unallocPaddySortKey]??0;
+      const cmp=typeof av==='string'?av.localeCompare(bv):av-bv;
+      return unallocPaddySortDesc?-cmp:cmp;
+    });
+    const arrow=k=>unallocPaddySortKey===k?(unallocPaddySortDesc?'▼':'▲'):'';
+    return `<div class="tbl-wrap" style="margin-bottom:20px">
+      <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--dim)">
+        ${unallocSorted.length} mills · Click column header to sort
+      </div>
+      <div class="tbl-scroll"><table>
+      <thead><tr>
+        <th style="cursor:default">#</th>
+        <th onclick="unallocPaddySortBy('dist')" style="cursor:pointer">District ${arrow('dist')}</th>
+        <th onclick="unallocPaddySortBy('code')" style="cursor:pointer">CSC Code ${arrow('code')}</th>
+        <th onclick="unallocPaddySortBy('name')" style="cursor:pointer">Mill Name ${arrow('name')}</th>
+        <th onclick="unallocPaddySortBy('nat')" style="cursor:pointer">Type ${arrow('nat')}</th>
+        <th onclick="unallocPaddySortBy('avail')" style="cursor:pointer">Available Paddy (Qtl) ${arrow('avail')}</th>
+        <th onclick="unallocPaddySortBy('allocatedPaddy')" style="cursor:pointer">Allocated Paddy (Qtl) ${arrow('allocatedPaddy')}</th>
+        <th onclick="unallocPaddySortBy('unallocated')" style="cursor:pointer">Unallocated (Qtl) ${arrow('unallocated')}</th>
+      </tr></thead>
+      <tbody>${unallocSorted.map((m,i)=>`<tr style="background:rgba(245,158,11,0.04)">
+        <td class="mono" style="color:var(--dim)">${i+1}</td>
+        <td style="font-size:12px">${m.dist}</td>
+        <td class="mono" style="color:var(--accent);font-weight:700">${m.code}</td>
+        <td style="font-size:12px">${m.name}</td>
+        <td><span class="badge2" style="background:${m.nat==='B'?'rgba(20,184,166,.15)':'rgba(99,102,241,.15)'};color:${m.nat==='B'?'var(--teal)':'var(--accent)'}">${m.nat==='B'?'Boiled':'Raw'}</span></td>
+        <td class="mono" style="color:var(--blue)">${fmtQtable(m.avail)}</td>
+        <td class="mono" style="color:var(--green2)">${fmtQtable(m.allocatedPaddy)}</td>
+        <td class="mono" style="color:var(--amber);font-weight:700">${fmtQtable(m.unallocated)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div>`;
+  })()}
+
   <div id="alert-paddyleft" class="alert-card warn" style="margin-bottom:12px">
     <div class="alert-icon">🌾</div>
     <div><div class="alert-title">Completed CMR — Significant Paddy Still Available (${paddyLeft.length} mills, &gt;500 Qtl remaining)</div>
@@ -3360,6 +3422,7 @@ function renderAllocRecon(){
 
 // ── INIT ALLOC ────────────────────────────────────────────────
 let NO_DSO_MILLS = [];
+let UNALLOC_PADDY_MILLS = [];
 
 function buildAllocFromUploads(){
   // Rebuilds ALLOC_DATA / NO_DSO_MILLS / ALLOC_IG entirely from the two
@@ -3368,6 +3431,7 @@ function buildAllocFromUploads(){
   if(!MM || !window.DW_UPLOADED){
     ALLOC_DATA = {meta:{}, boiled:[], raw:[]};
     NO_DSO_MILLS = [];
+    UNALLOC_PADDY_MILLS = [];
     window.ALLOC_IG = [];
     return;
   }
@@ -3497,6 +3561,26 @@ function buildAllocFromUploads(){
     const cap_t = parseFloat(String(m.cap_desc||'').replace(/[^0-9.]/g,''))||0;
     return {code:m.c, name:m.n, dist:m.d, nat: m.t==='Boiled'?'B':'R', avail:m.avail||0, cap_qtl:cap_t*10};
   });
+
+  // Unallocated Paddy Balance — per physical mill, checked against ALL
+  // FOUR allocation categories' PADDY inputs (not the CMR rice targets):
+  // FCI Boiled (AT+AU), FCI Raw (BB+BC), CSC-Central (Col L), CSC-State
+  // (Col AC). Balance = Available Paddy (Col K) minus paddy allocated
+  // across all four — paddy the miller physically holds that hasn't been
+  // assigned to any DSO category yet. Different question from "No DSO
+  // Allocation" (which checks the CMR rice TARGET columns) and from
+  // "Paddy Left After CMR" (which checks post-delivery leftover paddy on
+  // mills that are otherwise done) — this checks the allocation stage
+  // itself. Verified against a real file before wiring this in.
+  UNALLOC_PADDY_MILLS = src.map(m => {
+    const allocatedPaddy = (m.at_paddy||0) + (m.au_paddy||0) + (m.bb_paddy||0) + (m.bc_paddy||0)
+                          + (m.csc_c_paddy||0) + (m.csc_s_paddy||0);
+    const unallocated = (m.avail||0) - allocatedPaddy;
+    const cap_t = parseFloat(String(m.cap_desc||'').replace(/[^0-9.]/g,''))||0;
+    return {code:m.c, name:m.n, dist:m.d, nat: m.t==='Boiled'?'B':'R', avail:m.avail||0,
+            allocatedPaddy, unallocated, cap_qtl:cap_t*10};
+  }).filter(m => m.unallocated > 500) // same >500 Qtl threshold used by "Paddy Left After CMR"
+    .sort((a,b) => b.unallocated - a.unallocated);
 }
 
 function initAlloc(){
