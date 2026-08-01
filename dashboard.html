@@ -2415,7 +2415,14 @@ function renderAllocActive(){
   // except "In Progress".
   mills = mills.map(m=>{
     let f = m.flag;
-    if(m.del===0 && m.dso>0) f='Zero Delivery';
+    // "Zero Delivery" must mean the mill hasn't started at all — checked via
+    // hasAnyDelivery (LWB Weight present on ANY Miller Consignment row for
+    // this mill code, any nature/department, per report). A mill whose
+    // nature-specific accepted qty (del) happens to be 0 but which HAS a
+    // truck already weighed (LWB present, just not yet through QC/Stacking)
+    // — or which delivered under its OTHER nature — is not "zero delivery";
+    // it falls through to Low Delivery instead, since del_pct is still 0%.
+    if(m.del===0 && m.dso>0 && !m.hasAnyDelivery) f='Zero Delivery';
     else if(m.del_pct<25 && m.dso>0) f='Low Delivery';
     else if(m.days_need>allocDaysRem && m.pend>0) f='Will Miss Target';
     else if(m.del_pct>=90) f='On Track';
@@ -3362,9 +3369,21 @@ function buildAllocFromUploads(){
   const opmsAll = window.OPMS_UPLOADED || [];
   const opmsUploaded = opmsAll.length > 0;
   const opmsDelByMill = {}; // code -> {boiled, raw}
+  // "Has this mill actually started delivering at all" — per report, this
+  // must be judged from LWB Weight (Col P), NOT the moisture-cut/accepted
+  // figure above: a mill can have a truck already weighed at the godown
+  // (LWB Weight present) while still waiting on QC/Stacking Date, and a
+  // Boiled-registered mill that has only delivered Raw (or vice versa)
+  // has still genuinely started — so this checks EVERY row for the mill
+  // code, across BOTH class types and ALL departments, not scoped to the
+  // mill's own registered nature the way opmsDelByMill's Boiled side is.
+  const opmsHasLwbByMill = {}; // code -> true if any row has LWB Weight > 0
   opmsAll.forEach(row=>{
     const code = String(row[1]||'').trim(); if(!code) return;
-    if(!row[17]) return; // only rows that reached final acceptance (Stacking Date)
+    // LWB Weight check runs on EVERY row, independent of Stacking Date —
+    // a truck can be weighed at the godown well before QC/stacking clears.
+    if((row[15]||0) > 0) opmsHasLwbByMill[code] = true;
+    if(!row[17]) return; // remaining (moisture-cut delivered) logic only for rows that reached final acceptance (Stacking Date)
     if(!opmsDelByMill[code]) opmsDelByMill[code] = {boiled:0, raw:0};
     const isBoiled = row[4] && row[4].includes('PB');
     const isRaw    = row[4] && row[4].includes('Raw');
@@ -3428,6 +3447,7 @@ function buildAllocFromUploads(){
         csc_c_target:m.csc_c_target||0, // M[12] CSC-Central Raw CMR target
         csc_s_target:m.csc_s_target||0, // AD[29] CSC-State Raw CMR target
         dual: nat!==primaryNat,      // flags this as the mill's secondary/dual-nature entry
+        hasAnyDelivery: opmsHasLwbByMill[m.c]||false, // LWB Weight present on ANY row, any nature/dept — mill-level, not nature-scoped
         del,dso,bal,pend,cpd,days_need,del_pct,flag:'In Progress'};
     }
 
@@ -3659,12 +3679,26 @@ function renderOPMSPerf(){
     if(dateInRange(r[14],from,to)){ millSummary[code].range_qty+=getMCQty(r); millSummary[code].range_cons++; }
   });
 
-  // Mark zero delivery
-  const rejectedCodes=new Set(filtered.filter(r=>r[28]==='RQ'||r[28]==='AR').map(r=>r[1]));
-  const dumpedCodes=new Set(filtered.filter(r=>r[14]&&r[14].match(/\d{2}-\d{2}-\d{4}/)).map(r=>r[1]));
+  // Mark zero delivery — "has this mill actually started delivering" must
+  // be judged from LWB Weight (Col P) across the mill's FULL Miller
+  // Consignment record set (`data`, unfiltered by the Boiled/Raw nat
+  // button or district), not just `filtered`. Using `filtered` here was a
+  // bug: with the "Boiled" nat button selected, a Boiled-registered mill
+  // that only delivered Raw would have its Raw rows excluded from
+  // `filtered`, wrongly showing it as zero delivery in the Boiled view —
+  // and LWB Weight can be present before the Stacking Date used elsewhere,
+  // since a truck can be weighed at the godown before clearing QC.
+  const millWideStatus = {}; // code -> {hasLwb, statuses:Set}
+  data.forEach(r=>{
+    const code=r[1]; if(!code) return;
+    if(!millWideStatus[code]) millWideStatus[code] = {hasLwb:false, statuses:new Set()};
+    if((r[15]||0) > 0) millWideStatus[code].hasLwb = true;
+    millWideStatus[code].statuses.add(r[28]);
+  });
   Object.values(millSummary).forEach(m=>{
-    const hasDump=dumpedCodes.has(m.code);
-    const allRejected=hasDump&&[...m.statuses].every(s=>s==='RQ'||s==='AR');
+    const s=millWideStatus[m.code];
+    const hasDump=s ? s.hasLwb : false;
+    const allRejected=hasDump && s.statuses.size>0 && [...s.statuses].every(st=>st==='RQ'||st==='AR');
     m.zero_del=!hasDump||allRejected;
     m.rejected_only=allRejected;
   });
