@@ -3462,7 +3462,25 @@ function buildAllocFromUploads(){
   });
 
   ALLOC_DATA = {meta:{}, boiled: rows.filter(r=>r.nat==='B'), raw: rows.filter(r=>r.nat==='R')};
-  NO_DSO_MILLS = rows.filter(r=>r.dso===0).map(r=>({code:r.code,name:r.name,dist:r.dist,nat:r.nat,avail:r.avail,cap_qtl:r.cap_q}));
+
+  // "No DSO Allocation" must be judged per PHYSICAL MILL across all four
+  // real target columns (AV=FCI Boiled, BD=FCI Raw, M=CSC-Central,
+  // AD=CSC-State) — not per nature-split ALLOC_DATA row. A mill registered
+  // as "Boiled" can have its actual allocation recorded under BD/M/AD
+  // instead of AV (confirmed against a real file: 107 of 111 previously
+  // flagged mills had zero AV but a real nonzero value in another
+  // column) — filtering on a single nature-entry's dso===0 wrongly caught
+  // these as unallocated even though the physical mill has real
+  // allocation, just filed under a different column than its registered
+  // type. Verified directly against the source file: only mills with ALL
+  // FOUR columns at zero should be flagged (4 mills in that file).
+  NO_DSO_MILLS = src.filter(m => {
+    const rawTotal = (m.bd_target||0) + (m.csc_c_target||0) + (m.csc_s_target||0);
+    return (m.av_target||0)===0 && rawTotal===0;
+  }).map(m => {
+    const cap_t = parseFloat(String(m.cap_desc||'').replace(/[^0-9.]/g,''))||0;
+    return {code:m.c, name:m.n, dist:m.d, nat: m.t==='Boiled'?'B':'R', avail:m.avail||0, cap_qtl:cap_t*10};
+  });
 }
 
 function initAlloc(){
